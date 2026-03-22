@@ -395,6 +395,52 @@ void moveblk(unsigned int *x)
     }
 }
 
+/**
+ * Free memory for rdfiletospace() if no memory available.
+ */
+void freeblk(FILE *file, struct line_node *space, struct line_node *currentline)
+{
+    struct line_node *freeline;
+
+    fclose(file);
+
+    errorsound();
+
+    blockmsg(5);
+    dispstrhgc("หน่วยความจำไม่พอ ! กด <ESC> เพื่อทำงานต่อ", (14 + CENTER_FACTOR) + 8, 5, REVERSEATTR);
+
+    while (ebioskey( 0 ) != ESCKEY)
+        ;
+    dispstrhgc("กำลังคืนหน่วยความจำให้ระบบ กรุณารอสักครู่ ...", (14 + CENTER_FACTOR) + 8, 6, REVERSEATTR);
+    if (space != NULL)
+    {
+        currentline = space->next;
+        while (currentline != space)
+        {
+            freeline = currentline;
+            currentline = currentline->next;
+            if (freeline->text != NULL)
+            {
+                free(freeline->text);
+            }
+            if (freeline->graph != NULL)
+            {
+                free(freeline->graph);
+            }
+            free(freeline);
+        }
+        if (space->text != NULL)
+        {
+            free(space->text);
+        }
+        if (space->graph != NULL)
+        {
+            free(space->graph);
+        }
+        free(space);
+    }
+}
+
 /****************************************************************************/
 /*  Read file from disk. Parameter is filename wanted to read. Space is     */
 /*  allocated from MS-DOS. Data structer of space is circular linked list,  */
@@ -404,11 +450,13 @@ void moveblk(unsigned int *x)
 /****************************************************************************/
 struct line_node *rdfiletospace(char file_name[])
 {
-    FILE *fip,*fopen();
+    FILE *fip, *fopen();
     register int i;
-    struct line_node *space, *newline, *currentline, *freeline;
+    struct line_node *space, *newline, *currentline;
     static char text_str[MAXCOL * 5];
-    if ((fip = fopen(file_name, "rt")) != NULL)
+
+    fip = fopen(file_name, "rt");
+    if (fip != NULL)
     {
         blockmsg(11);
         dispstrhgc("กำลังอ่านข้อมูลจากแผ่นจานแม่เหล็กอยู่ กรุณารอสักครู่..."
@@ -416,7 +464,8 @@ struct line_node *rdfiletospace(char file_name[])
         space = (struct line_node *) malloc(sizeof(struct line_node));
         if (space == NULL)
         {
-            goto no_mem_avail;
+            freeblk(fip, NULL, NULL);
+            return(NULL);
         }
         space->next = space;
         space->previous = space;
@@ -425,10 +474,11 @@ struct line_node *rdfiletospace(char file_name[])
         space->text = (char *) malloc(1);
         if (space->text == NULL)
         {
-            goto no_mem_avail;
+            freeblk(fip, space, NULL);
+            return(NULL);
         }
         *(space->text) = '\0';
-        if (fgets(text_str,MAXCOL*5,fip) != NULL)
+        if (fgets(text_str, MAXCOL * 5, fip) != NULL)
         {
             i = strlen(text_str);
             if ((i > 0) && (text_str[i - 1] == '\n'))
@@ -456,7 +506,8 @@ struct line_node *rdfiletospace(char file_name[])
                 space->text = (char *) malloc(strlen(text_str) + 1);
                 if (space->text == NULL)
                 {
-                    goto no_mem_avail;
+                    freeblk(fip, space, NULL);
+                    return(NULL);
                 }
                 if (!stdcode)
                 {
@@ -479,7 +530,8 @@ struct line_node *rdfiletospace(char file_name[])
                     newline = (struct line_node *) malloc(sizeof(struct line_node));
                     if (newline == NULL)
                     {
-                        goto no_mem_avail;
+                        freeblk(fip, space, currentline);
+                        return(NULL);
                     }
                     newline->text = NULL;
                     newline->graph = NULL;
@@ -510,7 +562,8 @@ struct line_node *rdfiletospace(char file_name[])
                     newline->text = (char *) malloc(strlen(text_str) + 1);
                     if (newline->text == NULL)
                     {
-                        goto no_mem_avail;
+                        freeblk(fip, space, currentline);
+                        return(NULL);
                     }
                     if (!stdcode)
                     {
@@ -538,41 +591,6 @@ struct line_node *rdfiletospace(char file_name[])
         while (ebioskey(0) != ESCKEY);
         return(NULL);
     }
-no_mem_avail:
-    fclose(fip);
-    errorsound();
-    blockmsg(11);
-    dispstrhgc("หน่วยความจำไม่พอ ! กด <ESC> เพื่อทำงานต่อ", 26 - CENTER_FACTOR, 11, 2);
-    while (ebioskey(0) != ESCKEY);
-    dispstrhgc("กำลังคืนหน่วยความจำให้ระบบ กรุณารอสักครู่ ...", 26 - CENTER_FACTOR, 11, 2);
-    if (space != NULL)
-    {
-        currentline = space->next;
-        while (currentline != space)
-        {
-            freeline = currentline;
-            currentline = currentline->next;
-            if (freeline->text != NULL)
-            {
-                free(freeline->text);
-            }
-            if (freeline->graph != NULL)
-            {
-                free(freeline->graph);
-            }
-            free(freeline);
-        }
-        if (space->text != NULL)
-        {
-            free(space->text);
-        }
-        if (space->graph != NULL)
-        {
-            free(space->graph);
-        }
-        free(space);
-    }
-    return(NULL);
 }
 
 /****************************************************************************/
