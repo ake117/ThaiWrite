@@ -71,7 +71,7 @@ void cwsetup(int argc, char *argv[])
                     pagebreak = NO;
                     break;
                 case 'S' :
-                    cu_song = YES;
+                    cu_song = NO;
                     break;
                 default  :
                     usage();
@@ -147,6 +147,7 @@ void usage(void)
     fputs("\t-n,\t/n  no backup file created\n", stderr);
     fputs("\t-w,\t/w  no word wrap\n", stderr);
     fputs("\t-p,\t/p  no page break\n", stderr);
+    fputs("\t-s,\t/s  no splash screen song\n", stderr);
     exit(1);
 }
 
