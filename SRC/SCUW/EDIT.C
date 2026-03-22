@@ -178,12 +178,12 @@ void displine(struct line_node *line, unsigned int y, unsigned int linenum)
         prchar('+', 0, wind.col + wind.length - 1, y);
     }
     y -= wind.row;
-/*
+#ifdef WANT_TO_USE_GRAPH
     if (graphbuff[y] != NULL)
     {
         paintlinegraph(graphbuff[y], y);
     }
-*/
+#endif
 }
 
 /****************************************************************************/
@@ -203,9 +203,9 @@ void disppagebreak(unsigned int y)
 }
 
 /****************************************************************************/
+#ifdef WANT_TO_USE_GRAPH
 void set_graphic_buffer()
 {
-/*
     unsigned int count, i, j, m, n;
     unsigned int linenum = lineno, linenum2;
     struct line_node *templine;
@@ -325,8 +325,8 @@ void set_graphic_buffer()
             }
         }
     }
-*/
 }
+#endif
 
 /****************************************************************************/
 /*  Display all line in page from linked list. Stop display if keyboard is  */
@@ -337,7 +337,10 @@ void showpage(void)
 {
     register unsigned int y = 0, linenum = lineno;
     struct line_node *temppage = curpage;
-/*    set_graphic_buffer();   */
+
+#ifdef WANT_TO_USE_GRAPH
+    set_graphic_buffer();
+#endif
     while (temppage != curline)             /* find lineno of curpage */
     {
         linenum--;
@@ -704,10 +707,10 @@ void refreshline(unsigned int x, unsigned int y)
       prchar('+', 0, wind.col + wind.length - 1, y);
     }
     y -= wind.row;
-/*
+#ifdef WANT_TO_USE_GRAPH
     if (graphbuff[y] != NULL)
     {
       paintlinegraph(graphbuff[y], y);
     }
-*/
+#endif
 }

@@ -116,10 +116,12 @@ void reform(void)
         freeline = firstline;
         firstline = firstline->next;
         free(freeline->text);
+#ifdef WANT_TO_USE_GRAPH
         if (freeline->graph != NULL)
         {
             free(freeline->graph);
         }
+#endif
         free(freeline);
     }
     while (thaistrlen(curline->text) > (rightmar - leftmar + 1))
@@ -151,7 +153,9 @@ void reform(void)
         templine = (struct line_node *) malloc(sizeof(struct line_node));
         templine->text = (char *) malloc(strlen(fontcode) + strlen(cuthere) + 1);
         templine->wrap = NO;
+#ifdef WANT_TO_USE_GRAPH
         templine->graph = NULL;
+#endif
         strcpy(templine->text, fontcode);
         strcat(templine->text, cuthere);
         *cuthere = '\0';
@@ -285,7 +289,9 @@ void autowrap(unsigned *x,unsigned *y)
     templine->text[i] = '\0';
     strcat(templine->text,fontcode);
     strcat(templine->text,cuthere);
+#ifdef WANT_TO_USE_GRAPH
     templine->graph = NULL;
+#endif
     templine->wrap = (curline->next)->wrap;
     *cuthere = '\0';
     temp3 = (char *) malloc(strlen(curline->text) + strlen(fontcode) + 1);

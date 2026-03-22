@@ -23,7 +23,9 @@ struct line_node
     struct line_node *previous;     /* pointer to previous line */
     struct line_node *next;         /* pointer to next line */
     unsigned char *text;            /* pointer to text stream */
+#ifdef WANT_TO_USE_GRAPH
     unsigned char *graph;           /* pointer to graph */
+#endif
     char wrap;                      /* wrap flag for each line */
 };
 
@@ -226,14 +228,17 @@ EXTERN unsigned int command_tab[] = {
     0x8350,0x8511,
     0x8360,0x8611,
     0x8370,0x8711,
-/*
+
+    /* Graphic stuff */
+#ifdef WANT_TO_USE_GRAPH
     0x8100,ALTG,
     0x8200,ALTD,
     0x9100,CNTRL_B,
     0x9200,F9KEY,
     0x9500,ALTY,
     0x9600,ALTM,
-*/
+#endif
+
     0x8100,CNTRL_B,
     0x8200,F9KEY,
     0x8500,0x8501,

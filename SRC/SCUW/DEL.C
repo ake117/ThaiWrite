@@ -93,11 +93,13 @@ void deletereturn(struct line_node *line)
         line->next = linedeleted->next;
         (linedeleted->next)->previous = line;
         line->wrap = linedeleted->wrap;
+#ifdef WANT_TO_USE_GRAPH
         if ((linedeleted->graph != NULL) && (line->graph == NULL))
         {
             line->graph = linedeleted->graph;
             linedeleted->graph = NULL;
         }
+#endif
         if (linedeleted == curline)
         {
             curline = line;
@@ -107,10 +109,12 @@ void deletereturn(struct line_node *line)
             curpage = line;
         }
         free(linedeleted->text);
+#ifdef WANT_TO_USE_GRAPH
         if (linedeleted->graph != NULL)
         {
             free(linedeleted->graph);
         }
+#endif
         free(linedeleted);
     }
 }
@@ -329,19 +333,23 @@ void deleteline(struct line_node *line)
         (line->previous)->next = line->next;
         (line->next)->previous = line->previous;
         free(line->text);
+#ifdef WANT_TO_USE_GRAPH
         if (line->graph != NULL)
         {
             free(line->graph);
         }
+#endif
         free(line);
     }
     else
     {
         free(line->text);
+#ifdef WANT_TO_USE_GRAPH
         if (line->graph != NULL)
         {
             free(line->graph);
         }
+#endif
         line->text = (char *) malloc(1);
         *(line->text) = '\0';
         if (curline == line)

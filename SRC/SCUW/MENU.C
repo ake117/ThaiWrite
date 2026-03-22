@@ -329,12 +329,14 @@ char *menu7lev1[] = {
       "  จัดบรรทัด/หน้า ^OP  ",
       "  ปล่อยขอบ     ^OX  ",
       };
-/*
+
+#ifdef WANT_TO_USE_GRAPH
 char *menu8lev1[] = {
       "  อ่านแฟ้มรูปภาพ  ALT-G ",
       "  ลบรูปภาพ      ALT-D ",
       };
-*/
+#endif
+
 char *menu9lev1[] = {
       "  จัดย่อหน้า (Reform)     ^B  ",
       "  ตัดคำ                 F9  ",
@@ -351,14 +353,38 @@ char *menu10lev1[] = {
      "  เก็บตัวเลือก     ",
      };
 
-int xlev1[] = {1,9,16,24,31,36,41,49,57};         /*    49,55,63};   */
-int ylev1[] = {3,3,3,3,3,3,3,3,3,3};
-int nolev1[] = {8,7,7,11,3,8,7,7,3};            /*  2,6,3};       */
-char **msglev1[] = {menu1lev1,menu2lev1,menu3lev1,
-                    menu4lev1,menu5lev1,menu6lev1,
-                    menu7lev1,      /*     menu8lev1   */
-                    menu9lev1,
-                    menu10lev1};
+int xlev1[] = {
+    1, 9, 16, 24, 31, 36, 41,
+#ifdef WANT_TO_USE_GRAPH
+    49, 55, 63,
+#else
+    49, 57,
+#endif
+};
+
+int ylev1[] = {
+    3, 3, 3, 3, 3, 3, 3, 3, 3, 3
+};
+
+int nolev1[] = {
+    8, 7, 7, 11, 3, 8, 7,
+#ifdef WANT_TO_USE_GRAPH
+    2, 6, 3,
+#else
+    7, 3,
+#endif
+};
+
+char **msglev1[] = {
+    menu1lev1, menu2lev1, menu3lev1,
+    menu4lev1, menu5lev1, menu6lev1,
+    menu7lev1,
+#ifdef WANT_TO_USE_GRAPH
+    menu8lev1,
+#endif
+    menu9lev1, menu10lev1
+};
+
 char *cursormenu[] = {
      "  ไปทางซ้าย      ^S  ",
      "  ไปทางขวา      ^D  ",
@@ -448,7 +474,7 @@ void headmenu(unsigned int topmenu, char attr)
             _line(328, 24, 400, 24);
             _line(328, 43, 400, 43);
             break;
-    /*
+#ifdef WANT_TO_USE_GRAPH
     case 8: dispstrhgc(" รูปภาพ ", 49, 1, attr);
             _line(392, 24, 448, 24);
             _line(392, 43, 448, 43);
@@ -461,7 +487,7 @@ void headmenu(unsigned int topmenu, char attr)
             _line(504, 24, 639, 24);
             _line(504, 43, 639, 43);
             break;
-    */
+#else
     case 8: dispstrhgc(" คำสั่งอื่นๆ ", 49, 1, attr);
             _line(392, 24, 464, 24);
             _line(392, 43, 464, 43);
@@ -470,6 +496,7 @@ void headmenu(unsigned int topmenu, char attr)
             _line(456, 24, 639, 24);
             _line(456, 43, 639, 43);
             break;
+#endif
    }
 }
 

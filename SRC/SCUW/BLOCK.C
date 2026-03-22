@@ -152,7 +152,9 @@ struct line_node *copytospace(
     firstline->next = firstline;                /* set up */
     firstline->previous = firstline;            /* first node */
     firstline->wrap = fline->wrap;
+#ifdef WANT_TO_USE_GRAPH
     firstline->graph = NULL;                    /* graphic image is not copied */
+#endif
     i = linearcolumn(fline->text, fcol, &font);
     findstrcode(fontcode, font);                /* find string of control code */
     firstline->text = (char *) malloc(strlen(fontcode) + strlen(fline->text) - i + 1);
@@ -175,7 +177,9 @@ struct line_node *copytospace(
         fline = fline->next;
         newline = (struct line_node *) malloc(sizeof(struct line_node));
         newline->wrap = fline->wrap;
+#ifdef WANT_TO_USE_GRAPH
         newline->graph = NULL;
+#endif
         if (fline != lline)
         {
             newline->text = (char *) malloc(strlen(fline->text) + 1);
@@ -282,10 +286,12 @@ void deletelinklist(
         {
             free(freeline->text);
         }
+#ifdef WANT_TO_USE_GRAPH
         if (freeline->graph != NULL)
         {
             free(freeline->graph);
         }
+#endif
         free(freeline);
     }
     deletereturn(fline);
@@ -423,20 +429,24 @@ void freeblk(FILE *file, struct line_node *space, struct line_node *currentline)
             {
                 free(freeline->text);
             }
+#ifdef WANT_TO_USE_GRAPH
             if (freeline->graph != NULL)
             {
                 free(freeline->graph);
             }
+#endif
             free(freeline);
         }
         if (space->text != NULL)
         {
             free(space->text);
         }
+#ifdef WANT_TO_USE_GRAPH
         if (space->graph != NULL)
         {
             free(space->graph);
         }
+#endif
         free(space);
     }
 }
@@ -470,7 +480,9 @@ struct line_node *rdfiletospace(char file_name[])
         space->next = space;
         space->previous = space;
         space->wrap = NO;
+#ifdef WANT_TO_USE_GRAPH
         space->graph = NULL;
+#endif
         space->text = (char *) malloc(1);
         if (space->text == NULL)
         {
@@ -486,6 +498,7 @@ struct line_node *rdfiletospace(char file_name[])
                 text_str[i - 1] = '\0';
                 i--;
             }
+#ifdef WANT_TO_USE_GRAPH
             if ((text_str[0] == '.') &&
                 (text_str[1] == 'G') &&
                 (text_str[2] == 'R'))
@@ -497,6 +510,7 @@ struct line_node *rdfiletospace(char file_name[])
             }
             else
             {
+#endif
                 if ((i > 0) && (text_str[i - 1] == WRAPCODE))
                 {
                     text_str[i - 1] = '\0';
@@ -517,7 +531,9 @@ struct line_node *rdfiletospace(char file_name[])
                     }
                 }
                 strcpy(space->text, text_str);
+#ifdef WANT_TO_USE_GRAPH
             }
+#endif
             currentline = space;
             while (fgets(text_str, MAXCOL * 5, fip) != NULL)
             {
@@ -534,7 +550,9 @@ struct line_node *rdfiletospace(char file_name[])
                         return(NULL);
                     }
                     newline->text = NULL;
+#ifdef WANT_TO_USE_GRAPH
                     newline->graph = NULL;
+#endif
                     newline->wrap = NO;
                     insert_line(currentline, newline);
                 }
@@ -544,16 +562,16 @@ struct line_node *rdfiletospace(char file_name[])
                     text_str[i - 1] = '\0';
                     i--;
                 }
-                /*
+#ifdef WANT_TO_USE_GRAPH
                 if ((text_str[0] == '.') &&
                     (text_str[1] == 'G') &&
                     (text_str[2] == 'R'))
                 {
-                    / * newline->graph = readgraph(text_str + 4); * /
+                    /* newline->graph = readgraph(text_str + 4); */
                 }
                 else
                 {
-                */
+#endif
                     if ((i > 0) && (text_str[i - 1] == WRAPCODE))
                     {
                         text_str[i - 1] = '\0';
@@ -573,9 +591,9 @@ struct line_node *rdfiletospace(char file_name[])
                         }
                     }
                     strcpy(newline->text, text_str);
-                /*
+#ifdef WANT_TO_USE_GRAPH
                 }
-                */
+#endif
                 currentline = newline;
             }
         }
@@ -840,10 +858,10 @@ void writeblk(
     {
         dispstrhgc("กำลังจัดเก็บแฟ้มข้อมูลอยู่ กรุณารอสักครู่...", 22 - CENTER_FACTOR, 11, 2);
         currentline = linebegin;
-/*
+#ifdef WANT_TO_USE_GRAPH
         if (currentline->graph != NULL)
             fprintf(fip, ".GR %s\n", currentline->graph);
-*/
+#endif
         firstround = linearcolumn(currentline->text, colbegin, &font);
         findstrcode(fontcode, font);
         fputs(fontcode, fip);
@@ -877,12 +895,12 @@ void writeblk(
             putc('\n', fip);
             firstround = 0;
             currentline = currentline->next;
-/*
+#ifdef WANT_TO_USE_GRAPH
             if (currentline->graph != NULL)
             {
                 fprintf(fip, ".GR %s\n", currentline->graph);
             }
-*/
+#endif
         }
         templine = currentline->text;
         count = linearcolumn(templine, colend, &font);

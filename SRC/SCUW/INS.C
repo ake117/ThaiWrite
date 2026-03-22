@@ -573,7 +573,9 @@ void insertreturn(struct line_node *line, unsigned int thaicol)
     findstrcode(fontcode, font);
     line2 = (struct line_node *) malloc(sizeof(struct line_node));
     line2->wrap = line->wrap;
+#ifdef WANT_TO_USE_GRAPH
     line2->graph = NULL;
+#endif
     line2->text = (char *) malloc(strlen(line->text) + strlen(fontcode) - i + 1);
     strcpy(line2->text, fontcode);
     strcpy((line2->text) + strlen(fontcode), (line->text) + i);
