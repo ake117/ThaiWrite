@@ -223,8 +223,10 @@ void dotcommand(char string[])
     extern char pageformat[];
     extern int newpage;
     extern int curpage;
+#ifdef WANT_TO_USE_GRAPH
     extern int pic_print;
     extern int pic_offset;
+#endif
 
     /* ------ nonchange global area ------ */
     extern int locpagetitle;
@@ -271,10 +273,10 @@ void dotcommand(char string[])
             }
             break;
         */
-        /*
+#ifdef WANT_TO_USE_GRAPH
         case ('g' << 8) + 'p':
-        case ('g' << 8) + 'r': / * graphic print * /
-            get_argument(arg, string, &no_arg); / * get print parameter * /
+        case ('g' << 8) + 'r': /* graphic print */
+            get_argument(arg, string, &no_arg); /* get print parameter */
             if (no_arg == 3)
             {
                 if ((handle = open(&arg[1][0], O_RDONLY)) >= 0)
@@ -295,7 +297,7 @@ void dotcommand(char string[])
                 disperror(" dot command ไม่ถูกต้อง กดปุ่มใดๆเพื่อทำงานต่อ ");
             }
             break;
-        */
+#endif
         case ('p' << 8) + 'a': /* newpage or eject. */
             newpage = YES;
             break;

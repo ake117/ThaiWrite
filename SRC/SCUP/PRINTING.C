@@ -74,7 +74,9 @@ void initializebufferandfont(void)
 void printing(void)
 {
     extern int blankskip();
+#ifdef WANT_TO_USE_GRAPH
     extern int pic_print;
+#endif
     int i, j;
     int printquit;
     char st[5];
@@ -112,7 +114,9 @@ void printing(void)
         */
         dispprintf(38 - scol, 12, 0, "%5d", curpage);
         curline = 0;
+#ifdef WANT_TO_USE_GRAPH
         pic_print = NO;
+#endif
         while ((fgets(s, 500, fp) != NULL) && (printquit == NO))
         {
             strfilter(s, 0x8d);         /* delete 0x8d */
@@ -578,7 +582,9 @@ void findthreeindex(char s[], int *uindex, int *mindex, int *lindex)
 
 void preprinterloadline(char s[])
 {
+#ifdef WANT_TO_USE_GRAPH
     extern int pic_print;
+#endif
     extern int printer24pin;
     int mindex;
     if (graphicprint == YES)
@@ -600,9 +606,12 @@ void preprinterloadline(char s[])
     }
     else
     {
+#ifdef WANT_TO_USE_GRAPH
         if (pic_print == NO)
         {
+#endif
             PrinterLoadLineText(s);
+#ifdef WANT_TO_USE_GRAPH
         }
         else
         {
@@ -617,8 +626,11 @@ void preprinterloadline(char s[])
                 PrintThree24pin(mindex, mindex, mindex);
             }
             else
-            PrinterLoadLine9pin(s);
+            {
+                PrinterLoadLine9pin(s);
+            }
         }
+#endif
     }
 }
 

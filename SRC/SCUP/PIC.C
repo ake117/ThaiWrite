@@ -11,6 +11,7 @@
 
 #include "inc.h"
 
+#ifdef WANT_TO_USE_GRAPH
 /* function prototype */
 int is_command(char st[]);
 void get_argument(char arg[][40], char st[], int *no_arg);
@@ -39,7 +40,6 @@ int past_printer_data;       /* use to save old printer data */
 int dot_per_line;            /* use in update base positon */
 int dot_per_mode;            /* save number of dot in bit image mode */
 
-/*
 int is_command(char st[])
 {
     int i;
@@ -401,4 +401,4 @@ void read_picture_file(void)
         close(prd_handle);
     }
 }
-*/
+#endif

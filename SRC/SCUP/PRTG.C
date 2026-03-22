@@ -17,7 +17,7 @@ int rtrim(unsigned char line[], int left, int right);
 #define  ADJUST(x)  (x>=0) ? x : 256+x
 #define  ASCII_NO   256
 
-/*
+#ifdef WANT_TO_USE_GRAPH
 void print_picture(char *point)
 {
     extern int grp_ready;
@@ -26,7 +26,7 @@ void print_picture(char *point)
     print_buffer_pointer = point;
     read_picture_file();
 }
-*/
+#endif
 
 /* ---------------------------------------------
    function PrintBuffer9pin().print  data  in buffer.
@@ -64,9 +64,11 @@ void PrintThree9pin(void)
     extern int linespace;   /* FX    : 24 */
                             /* LX,LQ : 20 */
     extern int nlqmode;
+#ifdef WANT_TO_USE_GRAPH
     extern int pic_print;
     extern int grp_ready;
     extern int dot_per_line;
+#endif
     extern int maxdot;
     extern char *bupper1;
     extern char *bupper2;
@@ -76,7 +78,9 @@ void PrintThree9pin(void)
     extern char *bbelow2;
     extern char *print_buffer_pointer;
     char *print_pointer[6];
+#ifdef WANT_TO_USE_GRAPH
     char *temp_buffer;
+#endif
     int i, j, spleft;
 
     print_pointer[0] = bupper1;
@@ -89,8 +93,10 @@ void PrintThree9pin(void)
     {
         for (i = 0; i < 6; i++)
         {
+#ifdef WANT_TO_USE_GRAPH
             if (pic_print == NO)
             {
+#endif
                 PrintBuffer9pin(print_pointer[i]);
                 if ((i % 2) == 0)
                 {
@@ -122,9 +128,9 @@ void PrintThree9pin(void)
                         PrinterLineFeed216inch(23);
                     }
                 }
-            } /* picprint == yes */
-            /*
-            else
+#ifdef WANT_TO_USE_GRAPH
+            }
+            else  /* picprint == YES */
             {
                 switch (dot_per_line)
                 {
@@ -136,7 +142,7 @@ void PrintThree9pin(void)
                         }
                         else
                         {
-                            / * print_picture(print_pointer[i]); * /
+                            /* print_picture(print_pointer[i]); */
                             PrintBuffer9pin(print_pointer[i]);
                             PrinterLineFeed216inch(23);
                         }
@@ -173,7 +179,7 @@ void PrintThree9pin(void)
                         break;
                 }
             }
-            */
+#endif
         }
     }
     else
@@ -184,12 +190,12 @@ void PrintThree9pin(void)
             {
                 *(print_pointer[i] + j) |= *(print_pointer[i - 1] + j);
             }
-            /*
+#ifdef WANT_TO_USE_GRAPH
             if ((pic_print == YES) && (dot_per_line == 1))
             {
                 print_picture(print_pointer[i]);
             }
-            */
+#endif
             PrintBuffer9pin(print_pointer[i]);
             if (i == 5)
             {
