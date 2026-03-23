@@ -24,5 +24,5 @@ short int findchar(unsigned char ch, unsigned char *strbuf)
             return(1);
         }
     }
-    return(NULL);
+    return(0);
 }
