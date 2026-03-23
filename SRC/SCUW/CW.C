@@ -368,6 +368,10 @@ void main(int argc, char *argv[])
                         case CNTRL_Q:
                             quick(&x, &y);
                             break;
+                        case 0x3501:
+                            deltoendline(x, y);
+                            break;
+
                         case 0x8111:
                             inscntrl(CNTRL_W, x, y);
                             break;
