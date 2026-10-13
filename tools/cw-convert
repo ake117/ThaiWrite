@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""cw-convert — แปลงไฟล์ CU Writer (.DOC TIS-620 plain text) เป็น format ยุคใหม่
+
+Phase 1 ของโปรเจกต์ CU Writer Revival (Export-first):
+  รองรับ output: docx odt html md pdf txt(utf-8)
+  การจัดการ dot-command ของ CU Writer:
+    .pt <text>  → H1 heading
+    .he / .fo   → ตัดออก (page header/footer ไม่มีใน output format เหล่านี้)
+    อื่นๆ       → คงไว้เป็นข้อความธรรมดา
+"""
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+DOT_PT = ".pt"
+DOT_SKIP = (".he", ".fo", ".cw")  # .cw N = ความกว้างตัวอักษร/นิ้ว (print-only)
+
+# รหัสจัดรูปแบบ CU Writer (toggle on/off มาเป็นคู่)
+#   \x02 หนา   \x17 เอียง   \x13 ขีดเส้นใต้   \x12 ขีดเส้นใต้ 2 เส้น
+#   \x14 ตัวยก  \x16 ตัวห้อย   \x05 ตัวใหญ่ (ไม่มีเทียบเท่าใน md — หายได้)
+EOF_CHAR = "\x1a"
+CTRL_MAP = {0x02: ("**", "**"), 0x17: ("*", "*"),
+            0x13: ("<u>", "</u>"), 0x12: ("<u>", "</u>"),
+            0x14: ("^", "^"), 0x16: ("~", "~")}
+
+
+def map_ctrl_codes(text: str) -> str:
+    """รหัส CU Writer เป็น toggle on/off คู่เดียวกัน — track state ต่อรหัสให้เปิด/ปิดถูกฝั่ง"""
+    state: dict[int, int] = {}
+    chars = []
+    for ch in text.replace(EOF_CHAR, ""):
+        code = ord(ch)
+        if code in CTRL_MAP:
+            open_m, close_m = CTRL_MAP[code]
+            n = state.get(code, 0)
+            chars.append(open_m if n % 2 == 0 else close_m)
+            state[code] = n + 1
+        elif code == 0x05 or code < 9 or (11 <= code <= 12) or (14 <= code <= 31):
+            continue  # รหัสที่ไม่มีเทียบเท่า / control อื่น — ตัดทิ้ง
+        else:
+            chars.append(ch)
+    return "".join(chars)
+
+
+def read_cw(path: Path) -> str:
+    """อ่านไฟล์ TIS-620 → UTF-8 string พร้อมตรวจว่า decode ได้จริง
+
+    0xA0 (non-breaking space แบบ extended TIS) ไม่อยู่ในตาราง tis-620 ของ Python
+    → แทนด้วยช่องว่างปกติก่อน decode
+    """
+    raw = path.read_bytes().replace(b"\xa0", b" ")
+    try:
+        text = raw.decode("tis-620")
+    except UnicodeDecodeError as e:
+        raise SystemExit(f"error: {path}: ไม่ใช่ TIS-620 ที่ decode ได้ ({e})")
+    # TIS-620 decode บาง byte ไม่ error แต่ได้ control char มั่ว — เตือนถ้าเจอมากผิดปกติ
+    weird = sum(1 for c in text if ord(c) < 9 or (11 <= ord(c) <= 12) or (14 <= ord(c) <= 31))
+    if weird > len(text) * 0.05:
+        print(f"warning: {path}: พบ control character ผิดปกติ {weird} ตำแหน่ง — อาจไม่ใช่ text file", file=sys.stderr)
+    return text
+
+
+def transform(text: str) -> str:
+    """แปลง dot-command + รหัสจัดรูปแบบ เป็น markdown"""
+    text = map_ctrl_codes(text)
+
+    out = []
+    for line in text.splitlines():
+        line = line.rstrip("\r")
+        stripped = line.lstrip()
+        low = stripped.lower()
+        if low.startswith(DOT_PT):
+            title = stripped[3:].strip()
+            out.append(f"# {title}")
+        elif low.startswith(DOT_SKIP):
+            continue
+        else:
+            out.append(line)
+    # pandoc ต้องการ LF
+    return "\n".join(out) + "\n"
+
+
+def to_pdf(md_path: Path, out: Path) -> None:
+    """pdf ต้องมี CJK/Thai-capable engine — ใช้ weasyprint ผ่าน html ถ้ามี ไม่งั้นข้าม"""
+    try:
+        subprocess.run(
+            ["pandoc", str(md_path), "-o", str(out), "--pdf-engine=weasyprint"],
+            check=True, capture_output=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        raise SystemExit(
+            "error: สร้าง pdf ไม่ได้ — ต้องติดตั้ง weasyprint (pip install weasyprint) "
+            "และฟอนต์ไทย (fonts-thai-tlwg) ก่อน หรือเลือก format อื่น"
+        )
+
+
+FORMATS = ("docx", "odt", "html", "md", "txt", "pdf")
+
+
+def convert(src: Path, fmt: str, outdir: Path) -> Path:
+    utf8 = transform(read_cw(src))
+    out = outdir / (src.stem + "." + fmt)
+    if fmt == "md":
+        out.write_text(utf8, encoding="utf-8")
+        return out
+    # ไฟล์ intermediate ใช้ชื่ออื่นกันชนกับ output เอง (เช่น -f txt ที่ stem เดียวกัน)
+    md = outdir / (src.stem + ".cwconv.tmp.md")
+    md.write_text(utf8, encoding="utf-8")
+    try:
+        if fmt == "txt":
+            out.write_text(utf8, encoding="utf-8")
+        elif fmt == "pdf":
+            to_pdf(md, out)
+        else:
+            subprocess.run(["pandoc", str(md), "-t", fmt, "-o", str(out)], check=True)
+    finally:
+        md.unlink(missing_ok=True)
+    return out
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="CU Writer .DOC → ยุคใหม่ (docx/odt/html/md/txt/pdf)")
+    ap.add_argument("inputs", nargs="+", type=Path, help="ไฟล์ .DOC ของ CU Writer (หรือ directory)")
+    ap.add_argument("-f", "--format", default="docx", choices=FORMATS, help="output format (default: docx)")
+    ap.add_argument("-o", "--outdir", type=Path, default=Path.cwd(), help="โฟลเดอร์ปลายทาง (default: cwd)")
+    args = ap.parse_args()
+
+    files = []
+    for p in args.inputs:
+        if p.is_dir():
+            files.extend(sorted(p.glob("*.DOC")) + sorted(p.glob("*.doc")))
+        else:
+            files.append(p)
+    if not files:
+        raise SystemExit("error: ไม่พบไฟล์ .DOC")
+    args.outdir.mkdir(parents=True, exist_ok=True)
+
+    ok, fail = 0, 0
+    for f in files:
+        try:
+            out = convert(f, args.format, args.outdir)
+            print(f"OK  {f.name} → {out}")
+            ok += 1
+        except SystemExit as e:
+            print(f"ERR {f.name}: {e}", file=sys.stderr)
+            fail += 1
+        except subprocess.CalledProcessError as e:
+            print(f"ERR {f.name}: pandoc failed: {e}", file=sys.stderr)
+            fail += 1
+    print(f"\nสรุป: สำเร็จ {ok}, ล้มเหลว {fail}")
+    sys.exit(1 if fail and not ok else 0)
+
+
+if __name__ == "__main__":
+    main()

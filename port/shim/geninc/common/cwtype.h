@@ -1,0 +1,1 @@
+/home/ake/cuwrite-linux-cli/thaiwrite/SRC/COMMON/CWTYPE.H

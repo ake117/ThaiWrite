@@ -1,0 +1,9 @@
+# build artifacts
+*.o
+*.a
+*.log
+test_renderer
+__pycache__/
+# generated include mirrors / build output
+port/shim/geninc/
+exports/
