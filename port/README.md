@@ -48,6 +48,8 @@ tools/check-src-pristine.sh
 | Commit ฐาน | `729a3b1` — *SCUW: Fix compile warning.* (23 มี.ค. 2026) |
 | Fork งาน port นี้ | <https://github.com/ake117/ThaiWrite> |
 | Encoding ต้นฉบับ | TIS-620 (Thai Industrial Standard 620-2533) |
+| License ต้นฉบับ | Public domain (เผยแพร่ public domain ตั้งแต่ปี 1989) |
+| License งาน port | The Unlicense (`LICENSE`) |
 
 **ผู้พัฒนา CU-Writer** (จากคู่มือ 1.2 และ source 1.41):
 สถาบันบริการคอมพิวเตอร์ จุฬาลงกรณ์มหาวิทยาลัย และภาควิชาวิศวกรรมคอมพิวเตอร์
@@ -61,8 +63,8 @@ tools/check-src-pristine.sh
 แก้ `MAKEFILE`/`TURBOC.CFG`, เพิ่มไฟล์ฟอนต์/คู่มือ/เอกสาร
 
 **งาน port นี้** เป็นงานแยก (clean-room port) ที่ *อ่านและ compile* source ต้นฉบับ
-โดยไม่ดัดแปลงเนื้อหาเดิม — สถานะลิขสิทธิ์ของโค้ดที่เราเพิ่มยังเปิดให้กำหนด
-(ต้นฉบับเป็น public domain ⇒ แนะนำ Unlicense/CC0 ให้สอดคล้อง)
+โดยไม่ดัดแปลงเนื้อหาเดิม — โค้ดที่เราเพิ่ม (`port/`, `tools/`) เผยแพร่ภายใต้
+**The Unlicense** (ดู `LICENSE`) ให้สอดคล้องกับสถานะ public domain ของ CU Writer 1.41
 
 ---
 
