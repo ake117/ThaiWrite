@@ -125,6 +125,6 @@ fork      https://github.com/ake117/ThaiWrite      ← งานของเร�
 upstream  https://github.com/kytulendu/ThaiWrite   ← ต้นฉบับ
 
 master                  = ต้นฉบับ 100% (ไม่ถูกแตะ) ใช้เทียบ/ทำ PR
-port/ncurses-linux   = งาน port (ต่อยอดจาก master, เพิ่มไฟล์ล้วน)
+port/linux-terminal   = งาน port (ต่อยอดจาก master, เพิ่มไฟล์ล้วน)
 legacy/port-scaffold    = ประวัติ repo port เดิมก่อนย้ายเข้ามา (เก็บไว้อ้างอิง)
 ```

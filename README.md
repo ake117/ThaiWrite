@@ -16,7 +16,7 @@ export เป็น `.docx` `.odt` `.html` `.md` `.txt` `.pdf` ได้ทั�
 
 | | |
 |---|---|
-| Branch งาน port | [`port/ncurses-linux`](https://github.com/ake117/ThaiWrite/tree/port/ncurses-linux) |
+| Branch งาน port | [`port/linux-terminal`](https://github.com/ake117/ThaiWrite/tree/port/linux-terminal) |
 | ฐาน (upstream) | `729a3b1` — CU Writer 1.41 source / ThaiWrite |
 | License งาน port | The Unlicense — [`LICENSE`](LICENSE) |
 | License ต้นฉบับ | Public domain (CU Writer 1.41 เผยแพร่ public domain ตั้งแต่ปี 1989) |
@@ -62,7 +62,7 @@ fork      https://github.com/ake117/ThaiWrite      ← งาน port
 upstream  https://github.com/kytulendu/ThaiWrite   ← ต้นฉบับ
 
 master                  = ต้นฉบับ 100% ใช้เทียบ / ทำ PR กลับ upstream
-port/ncurses-linux   = งาน port (ต่อยอดจาก master)
+port/linux-terminal   = งาน port (ต่อยอดจาก master)
 ```
 
 ## License
