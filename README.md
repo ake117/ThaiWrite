@@ -1,126 +1,78 @@
-<!-- FORK-README-HEADER -->
 # CU Writer 1.41 — Linux / CLI port
 
-> **นี่คือ fork สำหรับงาน port** · ต้นฉบับอยู่ที่ [kytulendu/ThaiWrite](https://github.com/kytulendu/ThaiWrite)
-> และ **ไม่ถูกแก้ไขแม้แต่ไบต์เดียว** — ไฟล์ใต้ `SRC/`, `MANUAL/`, ฟอนต์, เอกสาร `.DOC`
-> ยังเหมือน `upstream/master` เป๊ะ ตรวจสอบได้ด้วย:
->
-> ```sh
-> tools/check-src-pristine.sh     # OK = ต้นฉบับสะอาด
-> ```
->
-> รายละเอียดงาน port ทั้งหมดอยู่ที่ **[`port/README.md`](port/README.md)**
+ให้ซียูไรเตอร์ 1.41 (ซียูไรเตอร์ / เวิร์ดจุฬา — DOS word processor ไทย, WordStar clone, 1989)
+กลับมารัน **native บน Linux และ Windows Terminal/WSL** ผ่าน ncurses TUI — ไม่ต้องใช้
+DOSBox หรือ emulator ใด ๆ และเน้น **export-first**: พิมพ์/แก้เอกสารไทยใน terminal แล้ว
+export เป็น `.docx` `.odt` `.html` `.md` `.txt` `.pdf` ได้ทันที
 
-**เป้าหมาย:** ให้ซียูไรเตอร์ 1.41 (DOS word processor ไทย, WordStar clone, 1989) รันเป็น
-native บน Linux และ Windows Terminal/WSL ผ่าน **ncurses TUI** — ใช้ terminal ตรงๆ
-ไม่ต้องมี DOSBox/emulator และเน้น **export-first**: พิมพ์เอกสารไทยใน terminal แล้ว
-export ออกเป็น `.docx` `.odt` `.html` `.md` `.txt` `.pdf` ได้ทันที
+> **สถานะ:** งาน port ระหว่างพัฒนา — ยังไม่ release
+> **Repo นี้เป็น fork ของ** [kytulendu/ThaiWrite](https://github.com/kytulendu/ThaiWrite)
+> (source CU Writer 1.41 ฉบับดั้งเดิม) · **ไฟล์ต้นฉบับใต้ `SRC/` ไม่ถูกแก้ไข** ยังเหมือน
+> upstream เป๊ะ ตรวจสอบได้ด้วย `tools/check-src-pristine.sh`
+>
+> README นี้แทนที่ README ต้นฉบับของ ThaiWrite — ดูของเดิมได้ที่
+> [upstream master README](https://github.com/kytulendu/ThaiWrite/blob/master/README.md)
+> หรือที่ branch `master` ของ fork นี้
 
 | | |
 |---|---|
 | Branch งาน port | [`port/fill-asm-symbols`](https://github.com/ake117/ThaiWrite/tree/port/fill-asm-symbols) |
 | ฐาน (upstream) | `729a3b1` — CU Writer 1.41 source / ThaiWrite |
 | License งาน port | The Unlicense — [`LICENSE`](LICENSE) |
-| License ต้นฉบับ | Public domain (CU Writer 1.41 เผยแพร่ตั้งแต่ปี 1989) |
+| License ต้นฉบับ | Public domain (CU Writer 1.41 เผยแพร่ public domain ตั้งแต่ปี 1989) |
 | Encoding | TIS-620 ต้นฉบับ → UTF-8 ที่ชั้น boundary |
+| แพลตฟอร์มเป้าหมาย | Linux (x86_64), Windows Terminal / WSL |
 
-## โครงสร้างงาน port
+## หลักการทำงาน
+
+1. **ต้นฉบับไม่ถูกแตะ** — งานทั้งหมดเป็นการ *เพิ่ม* ไฟล์ใน `port/` และ `tools/`
+   จุดที่ source ต้นฉบับ compile ไม่ผ่านกับ gcc ถูกจัดการที่ชั้น shim หรือ
+   build-time patch ลงสำเนาใน `build/` เท่านั้น ไม่แก้ `SRC/`
+2. **Dynamic display size** — ไม่ยึดติด 80x25 ใช้ `LINES`/`COLS` + `KEY_RESIZE`
+3. **Export-first** — ช่องทางออกหลักคือไฟล์เอกสาร ไม่ใช่การพิมพ์
+4. **UTF-8 เป็นเรื่องของ boundary** — ภายในยังใช้ TIS-620 semantics ของ CU Writer
+   แล้วแปลงตอนเข้า/ออกไฟล์
+
+## โครงสร้าง
 
 ```
 port/shim/       header replacement สำหรับ Borland Turbo C 2.01
-                 (dos.h bios.h conio.h dir.h process.h ...) + shim_*.c → libtwshim.a
+                 (dos.h bios.h conio.h dir.h process.h io.h graphics.h ...)
+                 + shim_*.c  →  libtwshim.a
 port/renderer/   ncurses backend แทน API ชั้น display (CWGRPHC.H)
-                 → libtwrenderer.a + test_renderer (headless, 41 tests)
-port/notes/      รายงานวิเคราะห์ (hard-coded 80x25 ฯลฯ)
-tools/           cw-convert  (TIS-620 → UTF-8 → docx/odt/html/md/txt/pdf)
-tools/check-src-pristine.sh   guard กันการเผลอแก้ต้นฉบับ
+                 →  libtwrenderer.a + test_renderer (headless, 41 tests)
+port/notes/      รายงานวิเคราะห์ (เช่น dynamic-layout.md)
+tools/           cw-convert — แปลง TIS-620 → UTF-8 → docx/odt/html/md/txt/pdf
+tools/check-src-pristine.sh — guard กันการเผลอแก้ต้นฉบับ
 SRC/             source ต้นฉบับ CU Writer 1.41  ← ไม่ถูกแตะ
 ```
 
 ## Build
 
 ```sh
-make -C port/renderer      # renderer + tests
-make -C port/shim          # shim layer
+make -C port/renderer      # renderer + test_renderer
+make -C port/shim          # shim layer → libtwshim.a
 make -C port/shim check    # compile-check source ต้นฉบับกับ shim headers
 ```
 
-## หลักการทำงาน
+## Branch & remotes
 
-1. **ต้นฉบับไม่ถูกแตะ** — งานทั้งหมดเป็นการ *เพิ่ม* ไฟล์ใน `port/` และ `tools/`
-   ถ้าจำเป็นต้องแก้ behavior ของ source ต้นฉบับ จะทำที่ชั้น shim หรือ
-   build-time patch ลงสำเนาใน `build/` เท่านั้น
-2. **Dynamic display size** — ไม่ยึดติด 80x25 ใช้ `LINES`/`COLS` + `KEY_RESIZE`
-3. **Export-first** — ช่องทางออกหลักคือไฟล์เอกสาร ไม่ใช่การพิมพ์
-4. **UTF-8 เป็นเรื่องของ boundary** — ภายในยังใช้ TIS-620 semantics ของ CU Writer
-   แล้วแปลงตอนเข้า/ออกไฟล์
+```
+fork      https://github.com/ake117/ThaiWrite      ← งาน port
+upstream  https://github.com/kytulendu/ThaiWrite   ← ต้นฉบับ
 
-## เครดิต
+master                  = ต้นฉบับ 100% ใช้เทียบ / ทำ PR กลับ upstream
+port/fill-asm-symbols   = งาน port (ต่อยอดจาก master)
+```
 
-* **CU Writer (ซียูไรเตอร์ / เวิร์ดจุฬา) 1.41** — สถาบันบริการคอมพิวเตอร์ และ
-  ภาควิชาวิศวกรรมคอมพิวเตอร์ คณะวิศวกรรมศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย
-  (รายชื่อผู้พัฒนาครบใน [`port/README.md`](port/README.md))
-* **ThaiWrite / source 1.41** — Khralkatorrix ([kytulendu](https://github.com/kytulendu))
+## License
+
+งาน port (`port/`, `tools/`, README, `LICENSE`) เผยแพร่ภายใต้ **The Unlicense**
+สอดคล้องกับสถานะ public domain ของ CU Writer 1.41 ต้นฉบับ
 
 ---
 
-## ⬇️ ต้นฉบับด้านล่างนี้ — ไม่แก้ไข (original upstream README, untouched)
-
----
-
-CU Writer 1.41 Source Code
-==========================
-
-Descriptions
-------------
-[CU Writer](http://th.wikipedia.org/wiki/%E0%B8%8B%E0%B8%B5%E0%B8%A2%E0%B8%B9%E0%B9%84%E0%B8%A3%E0%B9%80%E0%B8%95%E0%B8%AD%E0%B8%A3%E0%B9%8C) is a Thai [WordStar](https://en.wikipedia.org/wiki/WordStar) clone that run on [DOS](https://en.wikipedia.org/wiki/DOS).
-Develop by Computer Service Centre and Faculty of Engineering, Chulalongkorn University.
-First public release in april 1989 in [public domain](http://unlicense.org/),
-through BBTV Channel 7.
-
-More information about CU Writer, please read [Wikipedia](http://th.wikipedia.org/wiki/%E0%B8%8B%E0%B8%B5%E0%B8%A2%E0%B8%B9%E0%B9%84%E0%B8%A3%E0%B9%80%E0%B8%95%E0%B8%AD%E0%B8%A3%E0%B9%8C) or [CW141 wiki](https://github.com/kytulendu/CW141/wiki) (both are in Thai).
-
-This is the same original source code that found on a ftp server.
-ftp://ftp.cs.washington.edu/pub/thaisys/software/dos/cu-writer/
-
-    cusrc-1.zip 	41 KB 	12/5/2536 	0:00:00
-    cusrc-2.zip 	37 KB 	12/5/2536 	0:00:00
-    cusrc-3.zip 	62 KB 	12/5/2536 	0:00:00
-    cusrc-4.zip 	91 KB 	12/5/2536 	0:00:00
-
-no modification in the source code, except change a function name
-in \COMMON\CSCR.C from line to _line to make it not conflict with
-Borland Graphics Interface (BGI) when linking CUFONT,
-some edit in MAKEFILE and TURBOC.CFG.
-
-I also add the original document that included in CU Writer 1.41 release,
-TIS-620 converted document, binary font files and [Command Quick Reference](QREF.md) to the repo.
-
-The source code use Thai Industrial Standard 620-2533 (TIS-620)
-for character encoding.
-
-System Requirement
-------------------
-
-  * IBM PC or Compatible, 8086 or 8088 CPU, 256 KB RAM or better
-  * DOS 3.3 or better
-  * Hercules, EGA, VGA, MCGA or AT&T 400 (Graphic card in AT&T PC 6300/Olivetti M24)
-  * Two 5.25" 360Kb floppy disk drive
-  * 9 pin or 24 pin Dot-Matrix printer
-
-Compiling the source code
--------------------------
-
-1. To build this source code you need
-
-   - Borland Turbo C 2.01
-   - Borland Turbo Assembler 2.0 or newer
-   
-2. Put this reposity content into C:\CW
-3. Set PATH to Turbo C and Turbo Assembler
-4. Change directory to C:\CW\SRC
-5. Run MAKE.BAT
-6. Binary will go to C:\CW\
+## Credits
 
 CU-Writer developers
 --------------------
@@ -152,3 +104,9 @@ From CU-Writer 1.2 manual and CU-Writer 1.41 source code.
 
 If you know any one who is in CU-Writer project that isn't in this list,
 please in inform me. :)
+
+* **ThaiWrite / source 1.41** — [kytulendu](https://github.com/kytulendu) (Khralkatorrix):
+  ปรับชื่อฟังก์ชัน `line` → `_line` ใน `COMMON/CSCR.C` เพื่อไม่ชนกับ BGI,
+  แก้ `MAKEFILE`/`TURBOC.CFG`, เพิ่มไฟล์ฟอนต์ คู่มือ และเอกสารตัวอย่าง
+* **งาน port เป็น Linux/CLI นี้** — งานแยกที่ *อ่านและ compile* source ต้นฉบับ
+  โดยไม่ดัดแปลงเนื้อหาเดิม · รายละเอียดเพิ่มเติมที่ [`port/README.md`](port/README.md)
