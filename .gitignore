@@ -1,9 +1,10 @@
-# build artifacts
-*.o
 *.a
-*.log
-test_renderer
-__pycache__/
-# generated include mirrors / build output
-port/shim/geninc/
+# build artifacts
 exports/
+# generated include mirrors / build output
+*.log
+*.o
+port/shim/geninc/
+__pycache__/
+test_renderer
+test_shim
