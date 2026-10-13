@@ -1,1 +1,0 @@
-/home/ake/cuwrite-linux-cli/thaiwrite/SRC/COMMON/FILEUTIL.C

@@ -44,7 +44,7 @@ SHIM_SRCS = shim_compat.c shim_dos.c shim_bios.c shim_conio.c \
             shim_io.c shim_dir.c shim_process.c shim_graphics.c
 SHIM_OBJS = $(SHIM_SRCS:.c=.o)
 
-SRC = ../SRC
+SRC = ../../SRC
 
 all: libtwshim.a
 

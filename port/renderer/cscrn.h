@@ -17,6 +17,10 @@ void framebox(unsigned int x1, unsigned int y1,
               unsigned int x2, unsigned int y2,
               unsigned int attr);
 void blockmsg(int y);
+int  sign(int x);
+void _line(int x1, int y1, int x2, int y2);
+void _rectangle(int x1, int y1, int x2, int y2);
+void showerrno(void);
 char *savescrn(int x1, int y1, int x2, int y2);
 void resscrn(char *scrnindex, int x1, int y1, int x2, int y2);
 

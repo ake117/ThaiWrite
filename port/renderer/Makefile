@@ -2,7 +2,7 @@ CC      = gcc
 CFLAGS  = -Wall -Wextra -std=c99 -O2 -I.
 LDLIBS  = -lncursesw
 
-OBJS    = cwgrphc.o cscrn.o
+OBJS    = cwgrphc.o cscrn.o hdisp.o
 
 all: libtwrenderer.a test_renderer
 

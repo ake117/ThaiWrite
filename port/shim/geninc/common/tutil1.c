@@ -1,1 +1,0 @@
-/home/ake/cuwrite-linux-cli/thaiwrite/SRC/COMMON/TUTIL1.C

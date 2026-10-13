@@ -439,6 +439,11 @@ void shim_set_idle_hook(shim_isr hook)
     shim_idle_hook = hook;
 }
 
+/*  renderer ลงทะเบียน port_flush() ไว้ให้เราเรียกได้ แต่ shim ต้องไม่บังคับ
+ *  ให้ต้องมี renderer (standalone test ของ shim ยัง link ได้) จึงใช้ weak
+ *  ถ้า link มาด้วยกันจริง (binary cw) ตัวจริงจะถูกเรียกทุกครั้งที่ idle      */
+extern void port_flush(void) __attribute__((weak));
+
 void shim_run_idle(void)
 {
     shim_isr h;
@@ -452,6 +457,10 @@ void shim_run_idle(void)
     if (shim_idle_hook != NULL && shim_idle_hook != shim_noop_isr)
     {
         shim_idle_hook();
+    }
+    if (port_flush != NULL)
+    {
+        port_flush();
     }
 }
 

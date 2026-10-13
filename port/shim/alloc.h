@@ -19,6 +19,7 @@ extern "C" {
 
 unsigned int coreleft(void);
 unsigned int freemem(void);
+unsigned long farcoreleft(void);   /* Turbo C: free far-heap bytes (here: free heap) */
 
 /* brk()/sbrk() come from <unistd.h>; nothing else is needed here. */
 

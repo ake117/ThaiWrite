@@ -5,7 +5,10 @@
 test_renderer
 test_shim
 __pycache__/
+port/cw
 
 # ---- generated / output ----
+# geninc/ = symlink mirror ชื่อไฟล์ตัวพิมพ์เล็ก ชี้ไป SRC/ ด้วย absolute path
+# -> ผูกกับ path ของเครื่อง สร้างใหม่ได้ด้วย `make -C port/shim geninc`
 port/shim/geninc/
 exports/

@@ -204,6 +204,14 @@ unsigned int freemem(void)
     return coreleft();
 }
 
+unsigned long farcoreleft(void)
+{
+    /* Turbo C returned the free far-heap bytes.  The port has a single
+     * flat heap, so report a large constant for the same reason as
+     * coreleft(): callers only sanity-check it. */
+    return 0xFFFFuL;
+}
+
 void *farmalloc(unsigned long size)
 {
     return malloc((size_t)size);

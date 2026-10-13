@@ -33,8 +33,12 @@
 /*-----------------------------------------------------------------------*/
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <locale.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
 
 #include <ncurses.h>
 
@@ -48,8 +52,11 @@ unsigned int  graph_seg = 0;          /* was 0xA000/0xB000 in DOS      */
 unsigned char *screen_buffptr = NULL;
 unsigned char port_chardot[PORT_CELL_SIZE];
 
-char dfont[20 * 256];
-char ditalicfont[20 * 256];
+/*  dfont / ditalicfont: ที่เก็บจริงอยู่ที่ VAR.H + CW.C ของต้นฉบับ
+ *  (VAR.H ใช้ EXTERN ซึ่งกลายเป็นนิยามเมื่อ CW.C define DEFINE_VAR)
+ *  ห้ามนิยามซ้ำที่นี่ ไม่งั้น link เจอ multiple definition        */
+extern char dfont[20 * 256];
+extern char ditalicfont[20 * 256];
 
 /* dispatch table */
 Prchar_ptr     prchar_ptr     = NULL;
@@ -76,6 +83,25 @@ static port_cell screen[PORT_SCREEN_ROWS * PORT_SCREEN_COLS];
 static unsigned char dirty[PORT_SCREEN_ROWS * PORT_SCREEN_COLS];
 static int  port_active = 0;
 static int  cur_x = 0, cur_y = 0;
+static int  last_maxx = -1, last_maxy = -1;   /* ncurses size ครั้งก่อน  */
+
+/*  ขนาด terminal จริงจาก ioctl  —  shim อ่านคีย์เองด้วย bioskey()
+ *  ไม่ได้ผ่าน ncurses getch() ดังนั้น ncurses จึงไม่เคยได้รับสัญญาณ
+ *  SIGWINCH แล้วอัปเดต LINES/COLS ให้ ต้องถาม kernel เองทุก flush      */
+static int port_query_size(int *rows, int *cols)
+{
+    struct winsize ws;
+    int fd;
+
+    for (fd = 1; fd >= 0; fd--) {
+        if (ioctl(fd, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0 && ws.ws_col > 0) {
+            *rows = ws.ws_row;
+            *cols = ws.ws_col;
+            return 1;
+        }
+    }
+    return 0;
+}
 
 /* whatlevel lookup - port of HDISP.ASM leveltable (0xD0..0xEF).       */
 /* index = c - 0xD0                                                    */
@@ -153,6 +179,30 @@ static int reverse_applies(unsigned char c)
 }
 
 /* ------------------------------------------------------------------ */
+/* TIS-620 -> UTF-8 สำหรับส่งออก terminal                              */
+/* ------------------------------------------------------------------ */
+/*  ฟอนต์ของ CU Writer ใช้รหัส TIS-620 (0xA1-0xFB = ไทย) ตรงกับช่วง
+ *  U+0E01-U+0E5B ของ Unicode แบบ 1:1 จึงแปลงได้ตรง ๆ
+ *  ไบต์ 0x80-0xA0 และ 0xFC-0xFF (สัญลักษณ์/กล่อง) ส่งเป็น Latin-1 2 ไบต์  */
+static int put_utf8(char *buf, int n, unsigned char c)
+{
+    if (c >= 0xA1 && c <= 0xFB) {
+        unsigned int u = 0x0E00u + (unsigned int)(c - 0xA0);
+        buf[n++] = (char)(0xE0 | (u >> 12));
+        buf[n++] = (char)(0x80 | ((u >> 6) & 0x3F));
+        buf[n++] = (char)(0x80 | (u & 0x3F));
+    }
+    else if (c >= 0x80) {
+        buf[n++] = (char)(0xC0 | (c >> 6));
+        buf[n++] = (char)(0x80 | (c & 0x3F));
+    }
+    else {
+        buf[n++] = (char)c;
+    }
+    return n;
+}
+
+/* ------------------------------------------------------------------ */
 /* Rendering one cell to ncurses.                                      */
 /* ------------------------------------------------------------------ */
 static chtype cell_attr(const port_cell *cell)
@@ -186,17 +236,24 @@ static void place_cursor(unsigned int x, unsigned int y, int thaimode)
 static void render_cell(unsigned int x, unsigned int y)
 {
     port_cell *cell = &screen[y * PORT_SCREEN_COLS + x];
-    chtype ch;
+    char buf[24];
+    int n = 0;
+    chtype attrs;
 
     if (x >= (unsigned)getmaxx(stdscr))
         return;
 
     if (cell->dot[0] | cell->dot[1] | cell->dot[2]) {
-        /* graphics dot cell (plot): render filled block bits          */
+        /*  graphics dot cell (plot): render as filled blocks.
+         *  dot[0..2] คือ 20 แถวพิกเซลของเซลล์ DOS แบ่งเป็น 3 กลุ่ม
+         *  (0-6 / 7-13 / 14-19) — บน terminal ทั้ง 3 กลุ่มอยู่ใน "แถว
+         *  เดียวกัน" เพราะ 20 พิกเซลสูงเท่า 1 terminal row เป๊ะ
+         *  เดิมใช้ py = y*2+row ซึ่งเลื่อนกรอบลง 1-2 แถว + ล้นจอ
+         *  ตั้งแต่แถวล่าง ๆ ทำให้กรอบบน/ล่างหาย                        */
         int row, col;
         for (row = 0; row < 3; row++) {
             for (col = 0; col < 8; col++) {
-                int py = y * 2 + row;
+                int py = y;
                 if (cell->dot[row] & (1u << col)) {
                     if (py < getmaxy(stdscr))
                         mvaddch(py, x, ACS_CKBOARD | A_NORMAL);
@@ -212,37 +269,110 @@ static void render_cell(unsigned int x, unsigned int y)
         return;
     }
 
-    /* Pick the widest (base) character; overlays combine as wide-char */
-    if (cell->base != 0) {
-        ch = (chtype)(unsigned char)cell->base | cell_attr(cell);
-    }
-    else {
-        ch = ' ';
-        if (cell->attr & REVERSEATTR)
-            ch |= A_REVERSE;
-    }
-    mvaddch((int)y, (int)x, ch);
+    /*  วาดเป็น UTF-8 ต่อเนื่องกันทั้งเซลล์ (base + วรรณยุกต์/สระที่ซ้อนอยู่)
+     *  ถ้าส่งไบต์ TIS-620 ตรง ๆ ผ่าน mvaddch() terminal ที่เป็น UTF-8
+     *  จะทิ้งตัวอักษรนั้นไปทั้งหมด จึงต้องแปลง TIS-620 -> Unicode ไทย
+     *  (U+0E00 + code - 0xA0) ที่ชั้น boundary นี้                      */
+    if (cell->base)
+        n = put_utf8(buf, n, cell->base);
+    if (cell->top)
+        n = put_utf8(buf, n, cell->top);
+    if (cell->upper)
+        n = put_utf8(buf, n, cell->upper);
+    if (cell->below)
+        n = put_utf8(buf, n, cell->below);
+    buf[n] = '\0';
 
-    /* Combining marks are re-rendered next to nothing in chtype land:
-       ncurses cannot stack them on one cell.  The port renders the
-       base glyph; tone/vowel overlays are reflected in the cell state
-       (visible to putwind/getwind round-trips) and, when a cell has no
-       base, drawn as themselves so prchar of a lone vowel still shows. */
-    if (cell->base == 0) {
-        unsigned char c = cell->top ? cell->top :
-                          cell->upper ? cell->upper :
-                          cell->below;
-        if (c)
-            mvaddch((int)y, (int)x, (chtype)(unsigned char)c);
+    attrs = cell_attr(cell) & A_ATTRIBUTES;
+    attrset(attrs);
+    mvaddstr((int)y, (int)x, buf);
+    attrset(A_NORMAL);
+}
+
+/*  debug: ถ้าตั้ง CW_DUMP_SCREEN=<ไฟล์> จะ dump เนื้อ shadow screen
+ *  (เป็น UTF-8) ลงไฟล์ทุกครั้งที่ flush — ใช้ตรวจว่าแอปวาดอะไรไว้จริง */
+static void dump_screen_file(void)
+{
+    const char *path = getenv("CW_DUMP_SCREEN");
+    FILE *f;
+    unsigned int x, y;
+
+    if (path == NULL || *path == '\0')
+        return;
+    f = fopen(path, "w");
+    if (f == NULL)
+        return;
+    fprintf(f, "+");
+    for (x = 0; x < PORT_SCREEN_COLS; x++)
+        fputc('-', f);
+    fprintf(f, "+\n");
+    for (y = 0; y < PORT_SCREEN_ROWS; y++) {
+        fputc('|', f);
+        for (x = 0; x < PORT_SCREEN_COLS; x++) {
+            const port_cell *c = &screen[y * PORT_SCREEN_COLS + x];
+            char buf[24];
+            int n = 0;
+
+            if (c->dot[0] | c->dot[1] | c->dot[2])
+                fputc('#', f);
+            else {
+                if (c->base)  n = put_utf8(buf, n, c->base);
+                if (c->top)   n = put_utf8(buf, n, c->top);
+                if (c->upper) n = put_utf8(buf, n, c->upper);
+                if (c->below) n = put_utf8(buf, n, c->below);
+                if (n == 0)
+                    fputc(' ', f);
+                else {
+                    buf[n] = '\0';
+                    fputs(buf, f);
+                }
+            }
+        }
+        fprintf(f, "|\n");
     }
+    fprintf(f, "+");
+    for (x = 0; x < PORT_SCREEN_COLS; x++)
+        fputc('-', f);
+    fprintf(f, "+\n");
+    fclose(f);
 }
 
 void port_flush(void)
 {
     unsigned int x, y;
+    int mx, my;
 
     if (!port_active)
         return;
+
+    /*  ตรวจการเปลี่ยนขนาด terminal ก่อนวาดทุกครั้ง
+     *  shim อ่านคีย์เองผ่าน bioskey() ไม่ได้เรียก ncurses getch() จึงไม่มี
+     *  ใครอ่าน KEY_RESIZE และ ncurses ก็ไม่อัปเดต LINES/COLS ให้
+     *  -> ต้องถามขนาดจริงจาก kernel (ioctl TIOCGWINSZ) เอง แล้วเรียก
+     *  resizeterm + mark ทุกเซลล์ dirty เพื่อวาดใหม่ทั้งจอ              */
+    if (port_query_size(&my, &mx) && (mx != last_maxx || my != last_maxy)) {
+        last_maxx = mx;
+        last_maxy = my;
+        resizeterm(my, mx);
+        clearok(stdscr, TRUE);
+        for (y = 0; y < PORT_SCREEN_ROWS; y++)
+            for (x = 0; x < PORT_SCREEN_COLS; x++)
+                dirty[y * PORT_SCREEN_COLS + x] = 1;
+    }
+
+    dump_screen_file();
+
+    if (getenv("CW_DEBUG_FLUSH")) {
+        unsigned int dx, dy, ndirty = 0;
+
+        for (dy = 0; dy < PORT_SCREEN_ROWS; dy++)
+            for (dx = 0; dx < PORT_SCREEN_COLS; dx++)
+                if (dirty[dy * PORT_SCREEN_COLS + dx])
+                    ndirty++;
+        fprintf(stderr, "[flush] active=%d maxx=%d maxy=%d dirty=%u screen=%dx%d\n",
+                port_active, getmaxx(stdscr), getmaxy(stdscr), ndirty,
+                PORT_SCREEN_COLS, PORT_SCREEN_ROWS);
+    }
 
     for (y = 0; y < PORT_SCREEN_ROWS; y++) {
         if ((int)y >= getmaxy(stdscr))
@@ -677,7 +807,12 @@ void setgraph(void)
     putwind_ptr    = hputwind;
     getwind_ptr    = hgetwind;
 
-    /* ncurses init */
+    /* ncurses init
+     *  setlocale ต้องมาก่อน initscr(): ncursesw ตัดสินใจว่าจะแปลงสตริง
+     *  เป็น wide char ด้วย locale ใด ถ้าไม่เรียก ระบบจะอยู่ใน "C" locale
+     *  แล้ว mvaddstr() จะทิ้งไบต์ >= 0x80 ทั้งหมด -> ตัวอักษรไทยหายเงียบ ๆ
+     *  (ASCII ยังขึ้นปกติ จึงดูเหมือนจอวาดได้แต่ไทยว่าง)                     */
+    setlocale(LC_ALL, "");
     initscr();
     cbreak();
     noecho();
@@ -708,7 +843,27 @@ int port_getch(void)
     if (!port_active)
         return -1;
     port_flush();
-    c = getch();
+    for (;;) {
+        c = getch();
+        /*  ncurses ส่ง KEY_RESIZE มาเมื่อ terminal เปลี่ยนขนาด — ไม่ใช่คีย์
+         *  ที่โปรแกรมรู้จัก ต้องกลืนทิ้งแล้ววาดจอใหม่ (mark ทุกเซลล์ dirty)
+         *  ถ้าส่งต่อให้ core จะถูกตีความเป็นอักขระมั่ว ๆ                  */
+        if (c == KEY_RESIZE) {
+            resizeterm(getmaxy(stdscr), getmaxx(stdscr));
+            clearok(stdscr, TRUE);
+            last_maxx = getmaxx(stdscr);
+            last_maxy = getmaxy(stdscr);
+            {
+                unsigned int x, y;
+                for (y = 0; y < PORT_SCREEN_ROWS; y++)
+                    for (x = 0; x < PORT_SCREEN_COLS; x++)
+                        dirty[y * PORT_SCREEN_COLS + x] = 1;
+            }
+            port_flush();
+            continue;
+        }
+        break;
+    }
     return c;
 }
 
