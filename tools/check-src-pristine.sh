@@ -33,9 +33,11 @@ fi
 echo "== เทียบกับ: $REF =="
 
 # ไฟล์/โฟลเดอร์ที่ถือเป็น "ต้นฉบับ" (นอกนั้นคือของเราที่เพิ่มเข้ามา)
+# หมายเหตุ: README.md / QREF.md ไม่อยู่ในลิสต์นี้ — เป็นเอกสาร ไม่ใช่ source code
+# (fork ของเรา prepend หัวเรื่องของงาน port ไว้บนสุดของ README.md โดยคงเนื้อหาเดิมไว้ครบ)
 ORIGINAL_PATHS="SRC MANUAL ITALIC.FON ITALIC.P24 ITALIC.P9 ITALICS.P24 ITALICS.P9 \
 NORMAL.FON NORMAL.P24 NORMAL.P9 NORMALS.P24 NORMALS.P9 \
-README.md QREF.md TAIRUT.DOC TEST.DOC TEST2.DOC TEST3.DOC"
+TAIRUT.DOC TEST.DOC TEST2.DOC TEST3.DOC"
 
 # --diff-filter=MD : เอาเฉพาะ Modified/Deleted ของ path ต้นฉบับ
 # (Added คือสิ่งที่เราตั้งใจเพิ่ม, Renamed/Copied ไม่ควรมี)

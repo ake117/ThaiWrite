@@ -1,3 +1,73 @@
+<!-- FORK-README-HEADER -->
+# CU Writer 1.41 — Linux / CLI port
+
+> **นี่คือ fork สำหรับงาน port** · ต้นฉบับอยู่ที่ [kytulendu/ThaiWrite](https://github.com/kytulendu/ThaiWrite)
+> และ **ไม่ถูกแก้ไขแม้แต่ไบต์เดียว** — ไฟล์ใต้ `SRC/`, `MANUAL/`, ฟอนต์, เอกสาร `.DOC`
+> ยังเหมือน `upstream/master` เป๊ะ ตรวจสอบได้ด้วย:
+>
+> ```sh
+> tools/check-src-pristine.sh     # OK = ต้นฉบับสะอาด
+> ```
+>
+> รายละเอียดงาน port ทั้งหมดอยู่ที่ **[`port/README.md`](port/README.md)**
+
+**เป้าหมาย:** ให้ซียูไรเตอร์ 1.41 (DOS word processor ไทย, WordStar clone, 1989) รันเป็น
+native บน Linux และ Windows Terminal/WSL ผ่าน **ncurses TUI** — ใช้ terminal ตรงๆ
+ไม่ต้องมี DOSBox/emulator และเน้น **export-first**: พิมพ์เอกสารไทยใน terminal แล้ว
+export ออกเป็น `.docx` `.odt` `.html` `.md` `.txt` `.pdf` ได้ทันที
+
+| | |
+|---|---|
+| Branch งาน port | [`port/fill-asm-symbols`](https://github.com/ake117/ThaiWrite/tree/port/fill-asm-symbols) |
+| ฐาน (upstream) | `729a3b1` — CU Writer 1.41 source / ThaiWrite |
+| License งาน port | The Unlicense — [`LICENSE`](LICENSE) |
+| License ต้นฉบับ | Public domain (CU Writer 1.41 เผยแพร่ตั้งแต่ปี 1989) |
+| Encoding | TIS-620 ต้นฉบับ → UTF-8 ที่ชั้น boundary |
+
+## โครงสร้างงาน port
+
+```
+port/shim/       header replacement สำหรับ Borland Turbo C 2.01
+                 (dos.h bios.h conio.h dir.h process.h ...) + shim_*.c → libtwshim.a
+port/renderer/   ncurses backend แทน API ชั้น display (CWGRPHC.H)
+                 → libtwrenderer.a + test_renderer (headless, 41 tests)
+port/notes/      รายงานวิเคราะห์ (hard-coded 80x25 ฯลฯ)
+tools/           cw-convert  (TIS-620 → UTF-8 → docx/odt/html/md/txt/pdf)
+tools/check-src-pristine.sh   guard กันการเผลอแก้ต้นฉบับ
+SRC/             source ต้นฉบับ CU Writer 1.41  ← ไม่ถูกแตะ
+```
+
+## Build
+
+```sh
+make -C port/renderer      # renderer + tests
+make -C port/shim          # shim layer
+make -C port/shim check    # compile-check source ต้นฉบับกับ shim headers
+```
+
+## หลักการทำงาน
+
+1. **ต้นฉบับไม่ถูกแตะ** — งานทั้งหมดเป็นการ *เพิ่ม* ไฟล์ใน `port/` และ `tools/`
+   ถ้าจำเป็นต้องแก้ behavior ของ source ต้นฉบับ จะทำที่ชั้น shim หรือ
+   build-time patch ลงสำเนาใน `build/` เท่านั้น
+2. **Dynamic display size** — ไม่ยึดติด 80x25 ใช้ `LINES`/`COLS` + `KEY_RESIZE`
+3. **Export-first** — ช่องทางออกหลักคือไฟล์เอกสาร ไม่ใช่การพิมพ์
+4. **UTF-8 เป็นเรื่องของ boundary** — ภายในยังใช้ TIS-620 semantics ของ CU Writer
+   แล้วแปลงตอนเข้า/ออกไฟล์
+
+## เครดิต
+
+* **CU Writer (ซียูไรเตอร์ / เวิร์ดจุฬา) 1.41** — สถาบันบริการคอมพิวเตอร์ และ
+  ภาควิชาวิศวกรรมคอมพิวเตอร์ คณะวิศวกรรมศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย
+  (รายชื่อผู้พัฒนาครบใน [`port/README.md`](port/README.md))
+* **ThaiWrite / source 1.41** — Khralkatorrix ([kytulendu](https://github.com/kytulendu))
+
+---
+
+## ⬇️ ต้นฉบับด้านล่างนี้ — ไม่แก้ไข (original upstream README, untouched)
+
+---
+
 CU Writer 1.41 Source Code
 ==========================
 
