@@ -91,7 +91,7 @@ INC_SCUW   = -I. $(Q_SCUW) $(Q_COMMON) $(Q_SCUF) $(Q_SCUP)
 # Object lists taken from the original MAKEFILEs (MAKECOM/MAKEFED/
 # MAKEPRN/MAKETW).  The .ASM display adapters are deliberately absent:
 # port/renderer/cwgrphc.c replaces them.
-COMMON_C = EKBD.C DIR.C CSCRN.C FILEUTIL.C SOUND.C CUSONG.C GRDETECT.C \
+COMMON_C = EKBD.C DIR.C CSCRN.C FILEUTIL.C CUSONG.C GRDETECT.C \
            TUTIL1.C
 SCUF_C   = FED.C WRITE.C POPUP.C INT.C GETCH.C CONVERT.C KBD.C FILE.C \
            CUFSETUP.C FONTMSG.C TUTIL1.C

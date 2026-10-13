@@ -35,7 +35,7 @@ SRC     = ../SRC
 BUILD   = build
 LIBS    = shim/libtwshim.a renderer/libtwrenderer.a -lncursesw -lm
 
-COMMON  = EKBD DIR FILEUTIL GRDETECT SOUND CUSONG STAMPDAT
+COMMON  = EKBD DIR FILEUTIL GRDETECT CUSONG STAMPDAT
 SCUW    = SCRN GETSTR TUTIL1 EDIT INS DEL MENU KBD STATUS \
           MOVE MOVEMENT WRAP ONSCRN FILE SEARCH BLOCK CW CWSETUP
 THAISEP = MAINSYLS THAIENG WOWAEN FINDCHAR HOHIP HUNAKAD JULCUT KARAN \
@@ -60,9 +60,9 @@ $(BUILD)/c_%.o: $(SRC)/COMMON/%.C | $(BUILD)
 
 # SOUND.C: ต้นฉบับมี #ifdef NOSOUND ที่ทำให้ soundnoise()/errorsound() เป็น no-op
 # บน Linux ไม่มี PC speaker ให้ขับ และ biosdelay() ของ SOUND.C จะสpin ตาม
-# BIOS tick ทำให้เพลงจุฬาฯ ตอนเปิดโปรแกรมยาว ~73 วินาที — จึง define NOSOUND
-$(BUILD)/c_SOUND.o: $(SRC)/COMMON/SOUND.C | $(BUILD)
-	$(CC) $(CFLAGS) $(INC_C) -DNOSOUND -c -o $@ $<
+# BIOS tick ทำให้เพลงจุฬาฯ ตอนเปิดโปรแกรมยาว ~73 วินาที
+# → ไม่ compile SOUND.C แล้ว (เดิม define NOSOUND) — shim_dos.c เป็นผู้ให้
+#   soundnoise()/errorsound() แทน แบบ non-blocking ผ่าน aplay (ดู shim_dos.c)
 
 $(BUILD)/w_%.o: $(SRC)/SCUW/%.C | $(BUILD)
 	$(CC) $(CFLAGS) $(INC_W) -c -o $@ $<

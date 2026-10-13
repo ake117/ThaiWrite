@@ -244,22 +244,40 @@ static void render_cell(unsigned int x, unsigned int y)
         return;
 
     if (cell->dot[0] | cell->dot[1] | cell->dot[2]) {
-        /*  graphics dot cell (plot): render as filled blocks.
-         *  dot[0..2] คือ 20 แถวพิกเซลของเซลล์ DOS แบ่งเป็น 3 กลุ่ม
-         *  (0-6 / 7-13 / 14-19) — บน terminal ทั้ง 3 กลุ่มอยู่ใน "แถว
-         *  เดียวกัน" เพราะ 20 พิกเซลสูงเท่า 1 terminal row เป๊ะ
-         *  เดิมใช้ py = y*2+row ซึ่งเลื่อนกรอบลง 1-2 แถว + ล้นจอ
-         *  ตั้งแต่แถวล่าง ๆ ทำให้กรอบบน/ล่างหาย                        */
-        int row, col;
-        for (row = 0; row < 3; row++) {
-            for (col = 0; col < 8; col++) {
-                int py = y;
-                if (cell->dot[row] & (1u << col)) {
-                    if (py < getmaxy(stdscr))
-                        mvaddch(py, x, ACS_CKBOARD | A_NORMAL);
-                }
-            }
-        }
+        /*  graphics dot cell (plot): dot[0..2] คือ 20 แถวพิกเซลของเซลล์
+         *  DOS แบ่งเป็น 3 กลุ่ม (0-6 / 7-13 / 14-19) — บน terminal ทั้ง 3
+         *  กลุ่มอยู่ใน "แถวเดียวกัน" (เดิม py = y*2+row ทำให้กรอบเลื่อน
+         *  ลง 1-2 แถวจนบน/ล่างหาย)
+         *
+         *  เลือก glyph จากโปรไฟล์บิตแนวตั้ง (dump ได้ด้วย CW_DUMP_DOT):
+         *    d0=ff           → แถบบน      "▀"  (แถบชื่อเรื่อง/เส้นบน)
+         *    d2=ff           → แถบล่าง     "▄"  (แถบปิดท้ายจอ)
+         *    bit0 ทุกกลุ่ม    → เส้นขอบซ้าย  "▌"
+         *    bit7 ทุกกลุ่ม    → เส้นขอบขวา   "▐"
+         *    แน่นทั้งเซลล์     → "█"  ·  กรณีอื่น fallback → "▒"
+         *  เดิมวาด ACS_CKBOARD ทุกเซลล์ ทำให้กรอบเป็นบล็อกเทาทึบ        */
+        unsigned d0 = cell->dot[0], d1 = cell->dot[1], d2 = cell->dot[2];
+        int band_top = (d0 == 0xff) || (d1 == 0xff);
+        int band_bottom = (d1 == 0xff) || (d2 == 0xff);
+        int edge_left = (d0 & 0x01) || (d1 & 0x01) || (d2 & 0x01);
+        int edge_right = (d0 & 0x80) || (d1 & 0x80) || (d2 & 0x80);
+        const char *glyph;
+
+        if (band_top && band_bottom)
+            glyph = "\xe2\x96\x88";              /* █ full block        */
+        else if (band_top)
+            glyph = "\xe2\x96\x80";              /* ▀ upper half block  */
+        else if (band_bottom)
+            glyph = "\xe2\x96\x84";              /* ▄ lower half block  */
+        else if (edge_left && !edge_right)
+            glyph = "\xe2\x96\x8c";              /* ▌ left half block   */
+        else if (edge_right && !edge_left)
+            glyph = "\xe2\x96\x90";              /* ▐ right half block  */
+        else
+            glyph = "\xe2\x96\x92";              /* ▒ dither (fallback) */
+
+        if ((int)y < getmaxy(stdscr))
+            mvaddstr((int)y, (int)x, glyph);
         return;
     }
 
@@ -302,6 +320,24 @@ static void dump_screen_file(void)
     f = fopen(path, "w");
     if (f == NULL)
         return;
+    {
+        /*  debug: CW_DUMP_DOT=<ไฟล์> จะ dump dot bitmap ของทุกเซลล์
+         *  กราฟิก (ใช้ดูรูปร่างจริงของกรอบเพื่อเลือก glyph)              */
+        const char *dpath = getenv("CW_DUMP_DOT");
+        if (dpath != NULL && *dpath != '\0') {
+            FILE *df = fopen(dpath, "w");
+            if (df != NULL) {
+                for (y = 0; y < PORT_SCREEN_ROWS; y++)
+                    for (x = 0; x < PORT_SCREEN_COLS; x++) {
+                        const port_cell *dc = &screen[y * PORT_SCREEN_COLS + x];
+                        if (dc->dot[0] | dc->dot[1] | dc->dot[2])
+                            fprintf(df, "y=%2u x=%2u d0=%02x d1=%02x d2=%02x\n",
+                                    y, x, dc->dot[0], dc->dot[1], dc->dot[2]);
+                    }
+                fclose(df);
+            }
+        }
+    }
     fprintf(f, "+");
     for (x = 0; x < PORT_SCREEN_COLS; x++)
         fputc('-', f);

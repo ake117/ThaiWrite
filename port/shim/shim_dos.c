@@ -16,6 +16,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <signal.h>
+#include <sys/wait.h>
 
 #include "dos.h"
 
@@ -578,4 +580,128 @@ void sound(unsigned int frequency)
 
 void nosound(void)
 {
+}
+
+/* ---------------------------------------------------------------- */
+/*  PC-speaker emulation: soundnoise()/errorsound()                  */
+/*  SOUND.C เดิมขับ PC speaker ตรง (sound + biosdelay) — บน Linux     */
+/*  เลียนแบบด้วยคิวโน้ต "freq ms" ส่งให้ลูกโปรเซสที่เขียน PCM           */
+/*  ลง aplay คิวเป็น non-blocking จึงไม่หน่วงตัว editor               */
+/*  (เพลงจุฬาฯ ตอนเปิดโปรแกรมยาว ~73 วินาที แต่โปรแกรมใช้งานต่อได้เลย    */
+/*   และ cusong() จะหยุดคิวโน้ตใหม่ทันทีที่กดปุ่มใดก็ได้)                 */
+/* ---------------------------------------------------------------- */
+static int shim_tone_fd = -1;
+static pid_t shim_tone_pid = 0;
+
+/* ลูกโปรเซส: อ่านคิวโน้ต แล้วเขียนคลื่นสี่เหลี่ยมลง aplay แบบ real-time */
+static void shim_tone_player(int rd_fd)
+{
+    FILE *in = fdopen(rd_fd, "r");
+    FILE *ap;
+    char line[64];
+
+    if (in == NULL)
+    {
+        _exit(127);
+    }
+    ap = popen("aplay -q -c 1 -t raw -f U8 -r 8000 2>/dev/null", "w");
+    if (ap == NULL)
+    {
+        _exit(127);
+    }
+    while (fgets(line, sizeof line, in) != NULL)
+    {
+        unsigned int freq, ms;
+        if (sscanf(line, "%u %u", &freq, &ms) == 2)
+        {
+            long i;
+            long n = 8000L * ms / 1000L;
+            for (i = 0; i < n; i++)
+            {
+                unsigned int phase =
+                    (unsigned int)(((unsigned long)i * freq) / 8000u);
+                /* 8-bit unsigned เบา ๆ (center 128, ±40) */
+                fputc((phase & 1u) ? 168 : 88, ap);
+            }
+            fflush(ap);
+        }
+    }
+    pclose(ap);
+    _exit(0);
+}
+
+static void shim_tone_shutdown(void)
+{
+    if (shim_tone_fd >= 0)
+    {
+        close(shim_tone_fd);
+        shim_tone_fd = -1;
+        if (shim_tone_pid > 0)
+        {
+            kill(shim_tone_pid, SIGTERM);
+            waitpid(shim_tone_pid, NULL, 0);
+            shim_tone_pid = 0;
+        }
+    }
+}
+
+void soundnoise(unsigned int freq, unsigned int ms)
+{
+    const char *off = getenv("CW_NOSOUND");
+
+    if (off != NULL && *off != '\0' && *off != '0')
+    {
+        return;
+    }
+    if (getenv("CW_TONE_DEBUG") != NULL)
+    {
+        /* debug: ดูว่า cusong() เรียก soundnoise จริงไหม (โผล่บนจอ)     */
+        fprintf(stderr, "[tone %u %u]", freq, ms);
+        fflush(stderr);
+    }
+    if (ms == 0 || freq == 0)
+    {
+        return;
+    }
+    if (shim_tone_fd < 0)
+    {
+        int fds[2];
+        pid_t pid;
+
+        if (pipe(fds) != 0)
+        {
+            return;
+        }
+        pid = fork();
+        if (pid == (pid_t)-1)
+        {
+            close(fds[0]);
+            close(fds[1]);
+            return;
+        }
+        if (pid == 0)
+        {
+            /*  ลูกต้อง _exit() เท่านั้น — ห้ามรัน atexit ของพ่อ
+             *  (ไม่งั้นจะไปเรียก ncurses endwin ซ้ำ)                    */
+            close(fds[1]);
+            shim_tone_player(fds[0]);
+        }
+        close(fds[0]);
+        shim_tone_fd = fds[1];
+        shim_tone_pid = pid;
+        atexit(shim_tone_shutdown);
+    }
+    dprintf(shim_tone_fd, "%u %u\n", freq, ms);
+}
+
+/* ลำดับเสียงเตือนตอนกดคำสั่งที่ใช้ไม่ได้ (ทำนองเดียวกับ SOUND.C เดิม) */
+void errorsound(void)
+{
+    static const unsigned int scale[] = {262, 294, 330, 349, 392, 440, 494, 524};
+    unsigned int i;
+
+    for (i = 0; i < sizeof scale / sizeof scale[0]; i++)
+    {
+        soundnoise(scale[i], 40);
+    }
 }

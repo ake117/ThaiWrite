@@ -467,7 +467,16 @@ int bioskey(int cmd)
 
 int asm_keypressed(void)
 {
+    static int dbg_left = 8;
     shim_key_pump();
+    if (dbg_left > 0 && getenv("CW_TONE_DEBUG") != NULL)
+    {
+        /* debug: ดูว่าตอน startup มีคีย์ค้างให้ cusong() โดนข้ามไหม      */
+        dbg_left--;
+        fprintf(stderr, "[kp q=%d p=%d]", shim_kq_empty() ? 0 : 1,
+                (int)shim_pending_len);
+        fflush(stderr);
+    }
     if (!shim_kq_empty())
     {
         return 1;
