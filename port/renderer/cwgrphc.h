@@ -47,6 +47,10 @@
 /*   dot[] : coarse 8x20 pixel approximation used by plot():           */
 /*           dot[0]=rows 0-6, dot[1]=rows 7-13, dot[2]=rows 14-19,     */
 /*           bit N = column N (bit 0 = leftmost).                      */
+/*   over  : block-glyph override (index into the quadrant table in    */
+/*           cwgrphc.c).  Used where the DOS build blitted a bitmap    */
+/*           straight into video memory, e.g. prakeaw's crest, which   */
+/*           has no TIS-620 code to carry it.  0 = none.               */
 typedef struct port_cell {
     unsigned char base;
     unsigned char top;
@@ -54,7 +58,8 @@ typedef struct port_cell {
     unsigned char below;
     unsigned char attr;
     unsigned char dot[3];
-    unsigned char reserved[PORT_CELL_SIZE - 8]; /* zeroed */
+    unsigned char over;                          /* block glyph index   */
+    unsigned char reserved[PORT_CELL_SIZE - 9]; /* zeroed */
 } port_cell;
 
 /* ------------------------------------------------------------------ */

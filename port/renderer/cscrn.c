@@ -133,7 +133,7 @@ void togglefont(font_attr *curfont, font_code code)
     if (code == TWOLINECODE)
         *curfont = *curfont ^ TWOLINEATTR;
     if (code == ENLARGECODE)
-        *curfont = *curfont ^ ENLARGECODE;
+        *curfont = *curfont ^ ENLARGEATTR;
 }
 
 /*

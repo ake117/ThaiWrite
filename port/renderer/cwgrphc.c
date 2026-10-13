@@ -183,22 +183,48 @@ static int reverse_applies(unsigned char c)
 /* ------------------------------------------------------------------ */
 /*  ฟอนต์ของ CU Writer ใช้รหัส TIS-620 (0xA1-0xFB = ไทย) ตรงกับช่วง
  *  U+0E01-U+0E5B ของ Unicode แบบ 1:1 จึงแปลงได้ตรง ๆ
- *  ไบต์ 0x80-0xA0 และ 0xFC-0xFF (สัญลักษณ์/กล่อง) ส่งเป็น Latin-1 2 ไบต์  */
+ *  ไบต์ 0x8F-0x9B เป็นอักษรเส้นกล่องของฟอนต์ต้นฉบับ (NORMAL.FON
+ *  วาดเป็นเส้นบาง 1 พิกเซล) — ต้องแปลงเป็น Unicode Box Drawing
+ *  (U+2500-U+253C) ไม่ใช่ส่งไบต์ตรง ๆ ซึ่งจะกลายเป็น C1 control
+ *  ที่ terminal ไม่แสดงผล                                            */
+static unsigned int box_unicode(unsigned char c)
+{
+    switch (c) {
+        case 0x8F: return 0x253C;   /* ┼ */
+        case 0x90: return 0x252C;   /* ┬ */
+        case 0x91: return 0x2534;   /* ┴ */
+        case 0x92: return 0x2524;   /* ┤ */
+        case 0x93: return 0x251C;   /* ├ */
+        case 0x95: return 0x2500;   /* ─ */
+        case 0x96: return 0x2502;   /* │ */
+        case 0x98: return 0x250C;   /* ┌ */
+        case 0x99: return 0x2510;   /* ┐ */
+        case 0x9A: return 0x2514;   /* └ */
+        case 0x9B: return 0x2518;   /* ┘ */
+        default:   return 0;
+    }
+}
+
 static int put_utf8(char *buf, int n, unsigned char c)
 {
+    unsigned int u;
+
     if (c >= 0xA1 && c <= 0xFB) {
-        unsigned int u = 0x0E00u + (unsigned int)(c - 0xA0);
-        buf[n++] = (char)(0xE0 | (u >> 12));
-        buf[n++] = (char)(0x80 | ((u >> 6) & 0x3F));
-        buf[n++] = (char)(0x80 | (u & 0x3F));
+        u = 0x0E00u + (unsigned int)(c - 0xA0);
+    }
+    else if ((u = box_unicode(c)) != 0) {
+        /* เส้นกล่อง -> Unicode Box Drawing */
     }
     else if (c >= 0x80) {
-        buf[n++] = (char)(0xC0 | (c >> 6));
-        buf[n++] = (char)(0x80 | (c & 0x3F));
+        u = c;
     }
     else {
         buf[n++] = (char)c;
+        return n;
     }
+    buf[n++] = (char)(0xE0 | (u >> 12));
+    buf[n++] = (char)(0x80 | ((u >> 6) & 0x3F));
+    buf[n++] = (char)(0x80 | (u & 0x3F));
     return n;
 }
 
@@ -233,6 +259,44 @@ static void place_cursor(unsigned int x, unsigned int y, int thaimode)
     move(cur_y, cur_x);
 }
 
+/* ------------------------------------------------------------------ */
+/* dot-cell geometry: dot[] เก็บ mask ของคอลัมน์พิกเซลต่อกลุ่มแถว      */
+/* ------------------------------------------------------------------ */
+/*  เส้นนอน = ทุกคอลัมน์ของกลุ่มเดียวถูกเปิด (0xff)                    */
+static int dot_hstroke(const port_cell *c)
+{
+    return (c->dot[0] == 0xff) || (c->dot[1] == 0xff) || (c->dot[2] == 0xff);
+}
+
+/*  เส้นตั้ง = บิตเดียวถูกเปิดซ้ำในทุกกลุ่ม (bit 0x01 = ขอบซ้าย,       */
+/*  0x80 = ขอบขวา ของเซลล์)                                           */
+static int dot_vstroke(const port_cell *c, unsigned char bit)
+{
+    return (c->dot[0] & bit) && (c->dot[1] & bit) && (c->dot[2] & bit);
+}
+
+/*  glyph ครึ่ง/สี่ส่วนของเซลล์ (U+2580-U+259F) สำหรับ bitmap ที่ DOS
+ *  blit ลง video memory ตรง ๆ (prakeaw) — index = UL | UR<<1 | LL<<2
+ *  | LR<<3 โดย UL/UR = ครึ่งบนซ้าย/ขวา, LL/LR = ครึ่งล่างซ้าย/ขวา     */
+static const char *const quad_glyph[16] = {
+    " ",                    /*  0                              */
+    "\xe2\x96\x98",         /*  1  ▘ upper-left                 */
+    "\xe2\x96\x9d",         /*  2  ▝ upper-right                */
+    "\xe2\x96\x80",         /*  3  ▀ upper half                 */
+    "\xe2\x96\x96",         /*  4  ▖ lower-left                 */
+    "\xe2\x96\x8c",         /*  5  ▌ left half                  */
+    "\xe2\x96\x9e",         /*  6  ▞ upper-left+lower-right     */
+    "\xe2\x96\x9b",         /*  7  ▛ upper half + lower-left    */
+    "\xe2\x96\x97",         /*  8  ▗ lower-right                */
+    "\xe2\x96\x9a",         /*  9  ▚ upper-left+lower-right     */
+    "\xe2\x96\x90",         /* 10  ▐ right half                 */
+    "\xe2\x96\x9c",         /* 11  ▜ upper half + lower-right   */
+    "\xe2\x96\x84",         /* 12  ▄ lower half                 */
+    "\xe2\x96\x99",         /* 13  ▙ all but upper-right        */
+    "\xe2\x96\x9f",         /* 14  ▟ all but upper-left         */
+    "\xe2\x96\x88"          /* 15  █ full cell                  */
+};
+
 static void render_cell(unsigned int x, unsigned int y)
 {
     port_cell *cell = &screen[y * PORT_SCREEN_COLS + x];
@@ -243,6 +307,13 @@ static void render_cell(unsigned int x, unsigned int y)
     if (x >= (unsigned)getmaxx(stdscr))
         return;
 
+    /*  bitmap blit (crest logo ฯลฯ) ที่ไม่มีรหัสอักษรใน TIS-620      */
+    if (cell->over) {
+        if ((int)y < getmaxy(stdscr))
+            mvaddstr((int)y, (int)x, quad_glyph[cell->over & 0x0F]);
+        return;
+    }
+
     if (cell->dot[0] | cell->dot[1] | cell->dot[2]) {
         /*  graphics dot cell (plot): dot[0..2] คือ 20 แถวพิกเซลของเซลล์
          *  DOS แบ่งเป็น 3 กลุ่ม (0-6 / 7-13 / 14-19) — บน terminal ทั้ง 3
@@ -250,31 +321,72 @@ static void render_cell(unsigned int x, unsigned int y)
          *  ลง 1-2 แถวจนบน/ล่างหาย)
          *
          *  เลือก glyph จากโปรไฟล์บิตแนวตั้ง (dump ได้ด้วย CW_DUMP_DOT):
-         *    d0=ff           → แถบบน      "▀"  (แถบชื่อเรื่อง/เส้นบน)
-         *    d2=ff           → แถบล่าง     "▄"  (แถบปิดท้ายจอ)
-         *    bit0 ทุกกลุ่ม    → เส้นขอบซ้าย  "▌"
-         *    bit7 ทุกกลุ่ม    → เส้นขอบขวา   "▐"
-         *    แน่นทั้งเซลล์     → "█"  ·  กรณีอื่น fallback → "▒"
-         *  เดิมวาด ACS_CKBOARD ทุกเซลล์ ทำให้กรอบเป็นบล็อกเทาทึบ        */
+         *    d0/d1/d2 = ff   → เส้นนอน         "─"
+         *    bit0 ทุกกลุ่ม    → เส้นขอบซ้าย    "│"
+         *    bit7 ทุกกลุ่ม    → เส้นขอบขวา     "│"
+         *    เส้นนอน + ขอบซ้าย/ขวา → มุม/สามแยก "┌ ┐ └ ┘ ├ ┤ ┼"
+         *  ต้นฉบับเป็นเส้นกว้าง 1 พิกเซล — เดิมวาดครึ่งบล็อก (▀▄▌▐)
+         *  ทำให้กรอบดูหนาเกินจริง                                     */
         unsigned d0 = cell->dot[0], d1 = cell->dot[1], d2 = cell->dot[2];
-        int band_top = (d0 == 0xff) || (d1 == 0xff);
-        int band_bottom = (d1 == 0xff) || (d2 == 0xff);
-        int edge_left = (d0 & 0x01) || (d1 & 0x01) || (d2 & 0x01);
-        int edge_right = (d0 & 0x80) || (d1 & 0x80) || (d2 & 0x80);
+        /*  ตรวจว่าเส้นในเซลล์นี้ต่อไปยังเซลล์ข้างเคียงหรือไม่ แล้วเลือก
+         *  อักษรเส้นบางให้ตรงรูป (มุม/สามแยก/กากบาท) — เส้นต้นฉบับ
+         *  กว้าง 1 พิกเซล ครึ่งบล็อกจึงดูหนาเกินจริง                     */
+        int has_h = (d0 == 0xff) || (d1 == 0xff) || (d2 == 0xff);
+        int vbit  = ((d0 & 0x01) && (d1 & 0x01) && (d2 & 0x01)) ? 0x01
+                  : ((d0 & 0x80) && (d1 & 0x80) && (d2 & 0x80)) ? 0x80
+                  : 0x00;
+        int up = 0, down = 0, lft = 0, rgt = 0;
         const char *glyph;
 
-        if (band_top && band_bottom)
-            glyph = "\xe2\x96\x88";              /* █ full block        */
-        else if (band_top)
-            glyph = "\xe2\x96\x80";              /* ▀ upper half block  */
-        else if (band_bottom)
-            glyph = "\xe2\x96\x84";              /* ▄ lower half block  */
-        else if (edge_left && !edge_right)
-            glyph = "\xe2\x96\x8c";              /* ▌ left half block   */
-        else if (edge_right && !edge_left)
-            glyph = "\xe2\x96\x90";              /* ▐ right half block  */
+        /*  เซลล์ที่ทับด้วย bitmap blit (over) ล้าง dot ทิ้ง แต่เส้น
+         *  ต้นฉบับลากผ่านใต้รูป ต้องนับว่ายังต่อกันอยู่               */
+        if (has_h) {
+            if (x > 0 && (dot_hstroke(&screen[y * PORT_SCREEN_COLS + x - 1]) ||
+                          screen[y * PORT_SCREEN_COLS + x - 1].over))
+                lft = 1;
+            if (x + 1 < PORT_SCREEN_COLS &&
+                (dot_hstroke(&screen[y * PORT_SCREEN_COLS + x + 1]) ||
+                 screen[y * PORT_SCREEN_COLS + x + 1].over))
+                rgt = 1;
+        }
+        if (vbit) {
+            if (y > 0 && dot_vstroke(&screen[(y - 1) * PORT_SCREEN_COLS + x],
+                                     (unsigned char)vbit))
+                up = 1;
+            if (y + 1 < PORT_SCREEN_ROWS &&
+                dot_vstroke(&screen[(y + 1) * PORT_SCREEN_COLS + x],
+                            (unsigned char)vbit))
+                down = 1;
+        }
+
+        if (up && down && lft && rgt)
+            glyph = "\xe2\x94\xbc";              /* ┼  cross            */
+        else if (down && lft && rgt)
+            glyph = "\xe2\x94\xac";              /* ┬  top tee          */
+        else if (up && lft && rgt)
+            glyph = "\xe2\x94\xb4";              /* ┴  bottom tee       */
+        else if (up && down && rgt)
+            glyph = "\xe2\x94\x9c";              /* ├  left tee         */
+        else if (up && down && lft)
+            glyph = "\xe2\x94\xa4";              /* ┤  right tee        */
+        else if (down && rgt)
+            glyph = "\xe2\x94\x8c";              /* ┌  top-left         */
+        else if (down && lft)
+            glyph = "\xe2\x94\x90";              /* ┐  top-right        */
+        else if (up && rgt)
+            glyph = "\xe2\x94\x94";              /* └  bottom-left      */
+        else if (up && lft)
+            glyph = "\xe2\x94\x98";              /* ┘  bottom-right     */
+        else if (lft && rgt)
+            glyph = "\xe2\x94\x80";              /* ─  horizontal       */
+        else if (up && down)
+            glyph = "\xe2\x94\x82";              /* │  vertical         */
+        else if (has_h)
+            glyph = "\xe2\x94\x80";              /* ─  lone run         */
+        else if (vbit)
+            glyph = "\xe2\x94\x82";              /* │  lone run         */
         else
-            glyph = "\xe2\x96\x92";              /* ▒ dither (fallback) */
+            glyph = "\xe2\x96\x92";              /* ▒  unknown          */
 
         if ((int)y < getmaxy(stdscr))
             mvaddstr((int)y, (int)x, glyph);
@@ -528,6 +640,7 @@ static void serialize_cell(const port_cell *cell, unsigned char *out)
     out[5] = cell->dot[0];
     out[6] = cell->dot[1];
     out[7] = cell->dot[2];
+    out[8] = cell->over;
 }
 
 static void deserialize_cell(const unsigned char *in, port_cell *cell)
@@ -541,6 +654,7 @@ static void deserialize_cell(const unsigned char *in, port_cell *cell)
     cell->dot[0] = in[5];
     cell->dot[1] = in[6];
     cell->dot[2] = in[7];
+    cell->over   = in[8];
 }
 
 static void backend_savepic(void)
@@ -611,24 +725,66 @@ static void backend_clrline(unsigned int x1, unsigned int y1,
 }
 
 /* ------------------------------------------------------------------ */
-/* prakeaw  (EDISP.ASM _eprakeaw) - Chulalongkorn crest logo at the    */
-/* upper-left corner.  The DOS bitmaps (chulalogo1/2) are 16x20 pixel  */
-/* patterns; the port draws a two-cell mark covering the same area.    */
+/* prakeaw  (EDISP.ASM _eprakeaw / HDISP.ASM _hprakeaw) - พระเกี้ยว    */
+/* ที่มุมซ้ายบนของจอ                                                  */
+/*                                                                    */
+/*  ต้นฉบับ blit ข้อมูล 20 word (20 scanline x 16 พิกเซล) จาก         */
+/*  chulalogo1 (HDISP.ASM:152) ที่ scanline 2 byte column 1 และ        */
+/*  chulalogo2 (บรรทัด 157) ที่ byte column 3 => ครึ่งซ้าย/ขวาของรูป   */
+/*  รวม 32x20 พิกเซล ครอบคลุม row 0 คอลัมน์ 1-4 ของจอ terminal        */
+/*  เซลล์ละ 8x20 พิกเซล จึงย่อแต่ละเซลล์เป็น quadrant block            */
 /* ------------------------------------------------------------------ */
+static const unsigned short chulalogo1[20] = {
+    0x0200, 0x3200, 0x0d00, 0xfb03,
+    0x1d00, 0xe500, 0x9b03, 0x320c,
+    0xe400, 0xdf01, 0xb507, 0x1f0e,
+    0x0c00, 0x3f00, 0xe001, 0x0027,
+    0xff5f, 0x0027, 0xe051, 0x3f00
+};
+
+static const unsigned short chulalogo2[20] = {
+    0x0040, 0x004c, 0x00b0, 0xc0df,
+    0x00b8, 0x00a7, 0xc0d9, 0x304c,
+    0x0027, 0x80fb, 0xe0ad, 0x70f8,
+    0x0030, 0x00fc, 0x8007, 0xe400,
+    0xfaff, 0xe400, 0x8a07, 0x00fc
+};
+
 static void backend_prakeaw(void)
 {
-    port_cell *c1, *c2;
+    int cell;
 
     if (!port_active)
         return;
-    c1 = &screen[2 * PORT_SCREEN_COLS + 1];
-    c2 = &screen[2 * PORT_SCREEN_COLS + 3];
-    memset(c1, 0, sizeof(*c1));
-    memset(c2, 0, sizeof(*c2));
-    c1->base = (unsigned char)0xA4;   /*   phi  */
-    c2->base = (unsigned char)0xAE;   /*  tor   */
-    mark_dirty(1, 2);
-    mark_dirty(3, 2);
+
+    for (cell = 0; cell < 4; cell++) {
+        const unsigned short *blk = (cell < 2) ? chulalogo1 : chulalogo2;
+        int half = cell & 1;                 /* ครึ่งซ้าย/ขวาของ blk  */
+        int ul = 0, ur = 0, ll = 0, lr = 0;
+        int r, c;
+        port_cell *p = &screen[1 + cell];    /* row 0, cols 1..4       */
+
+        for (r = 0; r < 20; r++)
+            for (c = 0; c < 8; c++) {
+                int bit = (blk[r] >> (15 - (half * 8 + c))) & 1;
+
+                if (!bit)
+                    continue;
+                if (r < 10) {
+                    if (c < 4) ul++; else ur++;
+                } else {
+                    if (c < 4) ll++; else lr++;
+                }
+            }
+
+        /*  quadrant ที่มีพิกเซลเกิน 40% (16 จาก 40) ถือว่าทึบ       */
+        memset(p, 0, sizeof(*p));
+        p->over = (unsigned char)((ul > 16 ? 0x01 : 0) |
+                                  (ur > 16 ? 0x02 : 0) |
+                                  (ll > 16 ? 0x04 : 0) |
+                                  (lr > 16 ? 0x08 : 0));
+        mark_dirty((unsigned int)(1 + cell), 0);
+    }
 }
 
 /* ------------------------------------------------------------------ */

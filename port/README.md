@@ -77,7 +77,7 @@ port/shim/        แทน header ของ Borland Turbo C 2.01 (dos.h, bios.h
                   รวมไฟล์ stub ชื่อมี backslash เช่น "..\common\proto.h"
                   เพราะ gcc ไม่แปล DOS separator ใน #include "..\common\x.h"
 port/renderer/    ncurses backend สำหรับ API ชั้น display (CWGRPHC.H)
-                  → libtwrenderer.a + test_renderer (headless, 41 tests)
+                  → libtwrenderer.a + test_renderer (headless, 46 tests)
 port/notes/       รายงานการวิเคราะห์ (เช่น dynamic-layout.md)
 tools/            cw-convert — แปลงไฟล์ TIS-620 → UTF-8 → docx/odt/html/md/txt/pdf
 ```
@@ -140,3 +140,43 @@ legacy/port-scaffold    = ประวัติ repo port เดิมก่อ�
   เห็นว่ามีการกดปุ่มแล้วข้ามเพลง) · กดปุ่มใดก็ได้ระหว่างเพลงเพื่อข้าม
 - ปิดเสียงทั้งหมด: ตั้ง env `CW_NOSOUND=1`
 - debug คิวโน้ต: env `CW_TONE_DEBUG` (โน้ตจะพิมพ์ทับลงจอ)
+
+---
+
+## 7. การแสดงผล (display layer)
+
+แปลง TIS-620 → UTF-8 ที่ขอบ terminal เท่านั้น (0xA1-0xFB → U+0E01-U+0E5B
+แบบ 1:1) ส่วน **อักขระเส้น** ของฟอนต์ต้นฉบับ (`NORMAL.FON`) ต้องแปลงเป็น
+**Unicode Box Drawing** ไม่ใช่ปล่อยไบต์ดิบ ซึ่งจะกลายเป็น C1 control
+ที่ terminal ไม่แสดงผล (กรอบกล่องหายไปทั้งเส้น):
+
+| ฟอนต์ต้นฉบับ | ใช้ที่ | Unicode |
+|---|---|---|
+| 0x8F / 0x90 / 0x91 / 0x92 / 0x93 | กากบาท + สามแยก | ┼ ┬ ┴ ┤ ├ |
+| 0x95 / 0x96 | เส้นนอน / เส้นตั้ง | ─ │ |
+| 0x98 / 0x99 / 0x9A / 0x9B | มุมทั้งสี่ | ┌ ┐ └ ┘ |
+
+เส้นกรอบที่ต้นฉบับวาดด้วย `plot()` (`_rectangle`, เวอร์ชันกราฟิกของ
+`framebox`) ถูกเก็บใน `port_cell.dot[]` เป็น mask ของคอลัมน์พิกเซลต่อ
+กลุ่มแถว (dot[0] = แถว 0-6, dot[1] = 7-13, dot[2] = 14-19) — เส้นนอนเปิด
+ทุกคอลัมน์ของกลุ่มเดียว (`0xff`) เส้นตั้งเปิดบิตเดียวซ้ำทุกกลุ่ม
+(`0x01` = ขอบซ้าย, `0x80` = ขอบขวา) ตัว renderer เลือกอักษรเส้นบางให้ตรงรูป
+โดยดูว่าเส้นต่อไปยังเซลล์ข้างเคียงหรือไม่ (มุม/สามแยก/กากบาท) — **เดิมวาด
+เป็นครึ่งบล็อก ▀▄▌▐ ซึ่งทำให้กรอบดูหนากว่าเส้น 1 พิกเซลของต้นฉบับ**
+
+**โลโก้พระเกี้ยว** — `prakeaw()` (EDISP.ASM `_eprakeaw`, HDISP.ASM
+`_hprakeaw`) blit bitmap `chulalogo1`/`chulalogo2` (HDISP.ASM:152,157)
+ขนาด 32x20 พิกเซล ที่ scanline 2 byte column 1 และ 3 ⇒ row 0 คอลัมน์ 1-4
+ของจอ terminal ข้อมูลนี้เป็น bitmap ล้วน ไม่มีรหัสอักษรใน TIS-620 จึงเก็บ
+เป็น `port_cell.over` (index เข้าตาราง quadrant block U+2580-U+259F) โดย
+ย่อแต่ละเซลล์ 8x20 พิกเซลเป็น quadrant ที่มีพิกเซลทึบเกิน 40%
+
+### ความต่างจากต้นฉบับที่ตั้งใจ (intentional)
+
+- ข้อความที่เปิด `^E` (`ENLARGEATTR`) ได้ความกว้าง 2 คอลัมน์ต่ออักขระ
+  เท่าต้นฉบับ แต่ glyph ไม่ถูกยืด — บน terminal จึงเห็นเป็นตัวอักษรห่างกัน
+  (หัวกล่อง splash: `C U   W R I T E R`) ไม่ใช่ glyph หนาสองเท่า
+- `port_cell.over` เขียนไว้ที่ byte 8 ของ `serialize_cell` จึงตามไปกับ
+  getwind/putwind เฉพาะเมื่อ caller ใช้ record กว้าง ≥ 9 ไบต์ (เส้นทาง
+  ปกติของ DOS ใช้ 1 ไบต์/record) — `prakeaw()` วาดใหม่ตอนเปิดจอทุกครั้ง
+  เหมือน flow ของต้นฉบับอยู่แล้ว
