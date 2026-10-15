@@ -105,6 +105,7 @@ From CU-Writer 1.2 manual and CU-Writer 1.41 source code.
 If you know any one who is in CU-Writer project that isn't in this list,
 please in inform me. :)
 
+---
 * **ThaiWrite / source 1.41** — [kytulendu](https://github.com/kytulendu) (Khralkatorrix):
   ปรับชื่อฟังก์ชัน `line` → `_line` ใน `COMMON/CSCR.C` เพื่อไม่ชนกับ BGI,
   แก้ `MAKEFILE`/`TURBOC.CFG`, เพิ่มไฟล์ฟอนต์ คู่มือ และเอกสารตัวอย่าง
