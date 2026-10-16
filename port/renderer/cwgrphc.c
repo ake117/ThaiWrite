@@ -143,6 +143,26 @@ int port_graph_active(void)
     return port_active;
 }
 
+
+/*  ขนาดพื้นที่ที่วาดได้จริง = min(ขนาด shadow screen, ขนาด terminal)
+ *  ใช้จัดกล่อง splash ให้อยู่กลางจอ                                     */
+int port_visible_cols(void)
+{
+    int c = getmaxx(stdscr);
+
+    if (c <= 0)
+        return PORT_SCREEN_COLS;
+    return (c < PORT_SCREEN_COLS) ? c : PORT_SCREEN_COLS;
+}
+
+int port_visible_rows(void)
+{
+    int r = getmaxy(stdscr);
+
+    if (r <= 0)
+        return PORT_SCREEN_ROWS;
+    return (r < PORT_SCREEN_ROWS) ? r : PORT_SCREEN_ROWS;
+}
 /* Thai glyph code classes (from EDISP.ASM eprchar):                   */
 /*   topest       0xE7..0xEC                                           */
 /*   upper        0xD1, 0xD4..0xD7, 0xED..0xEE                         */
@@ -432,6 +452,26 @@ static void dump_screen_file(void)
     FILE *f;
     unsigned int x, y;
 
+    /*  CW_DUMP_ATTR ทำงานได้โดยไม่ต้องตั้ง CW_DUMP_SCREEN                */
+    {
+        const char *apath = getenv("CW_DUMP_ATTR");
+
+        if (apath != NULL && *apath != '\0') {
+            FILE *af = fopen(apath, "w");
+
+            if (af != NULL) {
+                for (y = 0; y < PORT_SCREEN_ROWS; y++) {
+                    fprintf(af, "%2u ", y);
+                    for (x = 0; x < PORT_SCREEN_COLS; x++)
+                        fprintf(af, "%02x",
+                                screen[y * PORT_SCREEN_COLS + x].attr);
+                    fputc('\n', af);
+                }
+                fclose(af);
+            }
+        }
+    }
+
     if (path == NULL || *path == '\0')
         return;
     f = fopen(path, "w");
@@ -488,6 +528,7 @@ static void dump_screen_file(void)
         fputc('-', f);
     fprintf(f, "+\n");
     fclose(f);
+
 }
 
 void port_flush(void)

@@ -188,6 +188,70 @@ static void run_assertions(void)
     blockmsg(10);
     CHECK(port_cell_at(13, 9)->attr & REVERSEATTR,
           "framebox paints reverse border");
+
+    /* --- splash box: อยู่กลางจอ + ไม่มีแถบดำเหนือ/ล่างพระเกี้ยว -------- */
+    /*  จำลองลำดับที่ CW.C (main) วาด — สตริงขึ้นต้นด้วย " " + 0x98/0x96/0x9A
+     *  ที่ col 16 (= 21 - CENTER_FACTOR) แถว 5-13                        */
+    {
+        char top[47], txt[47], bot[47];
+        unsigned int vis  = (unsigned int)port_visible_cols();
+        unsigned int base = (vis - 60) / 2;
+        unsigned int x, i;
+
+        if (base < 1)
+            base = 1;
+
+        top[0] = ' '; top[1] = (char)0x98;
+        txt[0] = ' '; txt[1] = (char)0x96;
+        bot[0] = ' '; bot[1] = (char)0x9A;
+        for (i = 2; i <= 43; i++) {
+            top[i] = (char)0x95;
+            txt[i] = 'x';
+            bot[i] = (char)0x95;
+        }
+        top[44] = (char)0x99; top[45] = ' '; top[46] = '\0';
+        txt[44] = (char)0x96; txt[45] = ' '; txt[46] = '\0';
+        bot[44] = (char)0x9B; bot[45] = ' '; bot[46] = '\0';
+
+        clsall();
+        dispstrhgc(top, 16, 5, REVERSEATTR);
+        for (i = 6; i <= 12; i++)
+            dispstrhgc(txt, 16, i, REVERSEATTR);
+        dispstrhgc(bot, 16, 13, REVERSEATTR);
+
+        CHECK(port_cell_at(base, 5)->base == 0x98,
+              "splash: ขอบบนซ้ายอยู่ที่คอลัมน์กลางจอ");
+        CHECK(port_cell_at(base + 59, 5)->base == 0x99,
+              "splash: ขอบบนขวา = base+59");
+        CHECK(port_cell_at(base, 13)->base == 0x9A,
+              "splash: ขอบล่างซ้าย");
+        CHECK(port_cell_at(base + 59, 13)->base == 0x9B,
+              "splash: ขอบล่างขวา");
+
+        {
+            int white = 1, ink = 0;
+
+            for (x = base + 1; x <= base + 16; x++) {
+                if (!(port_cell_at(x, 6)->attr & REVERSEATTR))
+                    white = 0;
+                if (!(port_cell_at(x, 12)->attr & REVERSEATTR))
+                    white = 0;
+                if (port_cell_at(x, 7)->over)
+                    ink = 1;
+            }
+            CHECK(white, "splash: แถว 6 และ 12 ขาวครบ (ไม่มีแถบดำบน/ล่าง logo)");
+            CHECK(ink, "splash: พระเกี้ยวถูกวาดในแถบซ้ายของกล่อง");
+        }
+
+        /*  message box ของ MENU.C (col 45 แถว 6) ต้องไม่ถูกจับเป็น splash */
+        clsall();
+        dispstrhgc(top, 45, 6, REVERSEATTR);
+        CHECK(port_cell_at(45, 6)->base == ' ',
+              "splash guard: กล่องข้อความอื่นไม่ถูกย้าย");
+        CHECK(port_cell_at(46, 6)->base == 0x98,
+              "splash guard: ขอบกล่องข้อความอื่นอยู่ที่ col เดิม");
+        clsall();
+    }
 }
 
 int main(int argc, char **argv)

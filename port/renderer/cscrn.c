@@ -39,19 +39,52 @@ int thaistrlen(char *thaist)
     return(count);
 }
 
-/*  แถบบน/ล่างของกล่อง splash — งาน port ขยายกล่องไปทางซ้ายถึงคอลัมน์ 1
- *  (กว้าง 60 คอลัมน์) เพื่อให้มีที่วางพระเกี้ยวในกล่อง                 */
-static void splash_bar(unsigned int y, unsigned int left, unsigned int right,
-                       font_attr attr)
+/*  ---- งาน port: กล่อง splash ของ CW (SCUW/CW.C main) ------------------
+ *  ต้นฉบับวาดกล่องกว้าง 44 คอลัมน์ ขอบซ้ายที่ col 17 (0-based) — งาน port
+ *  ขยายไปทางซ้าย 16 คอลัมน์ เพื่อวางพระเกี้ยวไว้ในกล่องซ้ายสุด แล้วเลื่อน
+ *  กล่องทั้งใบให้อยู่กลางพื้นที่ที่มองเห็นจริง (splash_base())
+ *    - แถบบน/ล่าง (0x98/0x99, 0x9A/0x9B): วาดเองให้กว้าง 60 คอลัมน์
+ *    - แถวข้อความที่ขึ้นต้นด้วย ' ' + 0x96: ย้ายขอบซ้ายมาที่ base
+ *    - แถบพระเกี้ยว (ซ้ายสุด 16 คอลัมน์): ต้องเป็นพื้นขาวครบทุกแถวของ
+ *      แถบ รวมแถวที่ไม่มีหมึก (แถวเหนือและล่างตัว logo) ไม่งั้นจะเห็น
+ *      เป็นแถบดำคาดอยู่ด้านบนและด้านล่างของ logo                     */
+#define SPLASH_W        60                 /* ความกว้างกล่อง (คอลัมน์) */
+#define SPLASH_LOGO_W   16                 /* ความกว้างแถบพระเกี้ยว      */
+#define SPLASH_TOP       5                 /* แถวขอบบนกล่อง             */
+#define SPLASH_BOTTOM   13                 /* แถวขอบล่างกล่อง           */
+
+/*  ขอบซ้ายของกล่อง ให้อยู่กลางพื้นที่ที่วาดได้จริง                      */
+static unsigned int splash_base(void)
+{
+    int vis  = port_visible_cols();
+    int base = (vis - SPLASH_W) / 2;
+
+    if (base < 1)
+        base = 1;
+    return (unsigned int)base;
+}
+
+/*  เติม blank + attr ครบช่วงคอลัมน์ [x0..x1] ของแถว y                   */
+static void splash_fill(unsigned int y, unsigned int x0, unsigned int x1,
+                        font_attr attr)
 {
     unsigned int x;
 
-    prchar(left, attr, 1, y);
-    for (x = 2; x <= 59; x++)
-    {
-        prchar(0x95, attr, x, y);
-    }
-    prchar(right, attr, 60, y);
+    for (x = x0; x <= x1; x++)
+        prchar(' ', attr, x, y);
+}
+
+/*  แถบบน/ล่างของกล่อง splash (ขอบซ้ายอยู่ที่ base)                      */
+static void splash_bar(unsigned int y, unsigned int left, unsigned int right,
+                       font_attr attr)
+{
+    unsigned int base = splash_base();
+    unsigned int x;
+
+    prchar(left, attr, base, y);
+    for (x = 1; x < SPLASH_W - 1; x++)
+        prchar(0x95, attr, base + x, y);
+    prchar(right, attr, base + SPLASH_W - 1, y);
 }
 
 /*****************************************************************************/
@@ -64,13 +97,15 @@ static void splash_bar(unsigned int y, unsigned int left, unsigned int right,
 void dispstrhgc(char *st, unsigned int x, unsigned int y, font_attr attr)
 {
     /*  ---- splash screen ของ CW (SCUW/CW.C main) ----------------------
-     *  งาน port ขยายกล่อง splash ไปทางซ้ายถึงคอลัมน์ 1 เพื่อวางพระเกี้ยว
-     *  ไว้ในกล่องซ้ายสุด แล้ววาดเป็น "ดำบนขาว" (REVERSEATTR เหมือนกล่อง)
-     *    - แถบบน/ล่าง (0x98..0x99 / 0x9A..0x9B): วาดเองให้กว้าง 60 col
-     *    - แถวข้อความที่ขึ้นต้นด้วย ' ' + 0x96 (ขอบซ้ายเดิม col 17):
-     *      ย้ายขอบซ้ายมาที่ col 1 แล้วไม่วาด 2 ตัวนั้น (เว้นเป็นช่อง)    */
-    if ((attr & REVERSEATTR) && x >= 16 && y >= 5 && y <= 13)
+     *  ตรวจที่คอลัมน์เริ่มต้นของต้นฉบับเท่านั้น (16 = 21 - CENTER_FACTOR)
+     *  เพื่อไม่ให้ไปโดนกล่องข้อความอื่นที่วาดด้วย REVERSEATTR ในย่านนี้
+     *  (เช่น message box ของ MENU.C ที่ขึ้นต้นที่ col 45)              */
+    if ((attr & REVERSEATTR) && (x == 16) &&
+        (y >= SPLASH_TOP) && (y <= SPLASH_BOTTOM))
     {
+        unsigned int base = splash_base();
+        unsigned int off  = base - 1;   /* ระยะที่เลื่อนจากตำแหน่งเดิม */
+
         if (((unsigned char)st[0] == ' ') && ((unsigned char)st[1] == 0x98))
         {
             splash_bar(y, 0x98, 0x99, attr);
@@ -78,15 +113,25 @@ void dispstrhgc(char *st, unsigned int x, unsigned int y, font_attr attr)
         }
         if (((unsigned char)st[0] == ' ') && ((unsigned char)st[1] == 0x9A))
         {
+            unsigned int fy;
+
             splash_bar(y, 0x9A, 0x9B, attr);
-            port_draw_crest(2, 7, 16, 5, (font_attr)(attr | REVERSEATTR));
+
+            /*  แถบพระเกี้ยวด้านซ้าย: เติมพื้นขาวให้ครบทุกแถวของแถบ
+             *  ก่อน แล้วค่อยวาดพระเกี้ยวทับแถวกลาง ๆ                     */
+            for (fy = SPLASH_TOP + 1; fy <= SPLASH_BOTTOM - 1; fy++)
+            {
+                splash_fill(fy, base + 1, base + SPLASH_LOGO_W, attr);
+            }
+
+            port_draw_crest(base + 1, SPLASH_TOP + 2, SPLASH_LOGO_W, 5, attr);
             return;
         }
         if (((unsigned char)st[0] == ' ') && ((unsigned char)st[1] == 0x96))
         {
-            prchar(0x96, attr, 1, y);   /* ขอบซ้ายใหม่ที่คอลัมน์ 1 */
-            st += 2;                    /* ข้าม " " + 0x96 เดิม      */
-            x += 2;
+            prchar(0x96, attr, base, y);   /* ขอบซ้ายใหม่ที่ base      */
+            st += 2;                       /* ข้าม " " + 0x96 เดิม      */
+            x  += 2 + off;                 /* เลื่อนข้อความตามกล่อง     */
         }
     }
 

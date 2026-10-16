@@ -46,9 +46,30 @@ DOS byte-buffer sizes (20 bytes per scanline record).
   16x5 Braille cells = 32x20 dots, one dot per bitmap pixel (no
   downsampling). Dot masks live in `port_cell.over` and render as
   `U+2800 + mask` with the cell's attr (the splash draws it REVERSEATTR =
-  black on white). `dispstrhgc` widens the splash box 16 columns to the
-  left so the crest sits inside the border, and fills the second column of
-  every ENLARGEATTR glyph with a same-attr blank (otherwise that cell kept
-  the old background and read as a black gap). `prakeaw()` is a no-op.
+  black on white). `dispstrhgc` only intercepts the splash rows at their
+  original column (col 16 = `21 - CENTER_FACTOR`, rows 5-13) — a plain
+  `REVERSEATTR` message box elsewhere (MENU.C draws one at col 45) must
+  stay untouched. It widens the box 16 columns to the left (44 -> 60) and
+  shifts the whole box to the centre of the visible area
+  (`splash_base()` = (`port_visible_cols()` - 60) / 2), so the crest sits
+  inside the border on any terminal width. It also fills *every* interior
+  row of the crest band with a same-attr blank before drawing the crest —
+  the band covers rows 6-12 while the bitmap is only 5 rows tall, and the
+  rows above/below the logo otherwise keep the old background and read as
+  black bars. Same-attr blanks go into the second column of every
+  ENLARGEATTR glyph for the same reason. `prakeaw()` is a no-op.
 - super/subscript and enlarge are recorded per cell but rendered as
   normal glyphs (terminals cannot shift a single cell).
+
+## Debugging
+
+| env var | effect |
+|---|---|
+| `CW_DUMP_SCREEN=<file>` | dump the shadow screen as text (one line per row, `#` for `plot` dot cells, overlays appended) |
+| `CW_DUMP_DOT=<file>` | dump the coarse dot bitmap of every cell (`y= x= d0= d1= d2=`) |
+| `CW_DUMP_ATTR=<file>` | dump every cell's `attr` byte as 2 hex digits — the way to tell a *white* cell (`attr & 0x02`) from one that kept the background |
+| `CW_DEBUG_FLUSH` | print terminal size / dirty-cell counts per flush to stderr |
+
+`CW_DUMP_ATTR` is what caught the black bars above and below the crest:
+rows 6 and 12 of the crest band had `attr 00` while the rest of the box
+was `02` (REVERSEATTR).

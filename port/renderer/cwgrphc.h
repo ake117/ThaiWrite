@@ -233,6 +233,11 @@ void setgraph(void);
    settext).                                                          */
 int  port_graph_active(void);
 
+/* Visible extent = min(shadow-screen size, terminal size).  Used to
+   centre the splash box on whatever terminal the port runs in.       */
+int  port_visible_cols(void);
+int  port_visible_rows(void);
+
 /* Shadow-screen access.  Returns NULL when out of bounds.            */
 port_cell *port_cell_at(unsigned int x, unsigned int y);
 
