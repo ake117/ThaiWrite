@@ -722,7 +722,6 @@ static void backend_clrline(unsigned int x1, unsigned int y1,
 
 /* ------------------------------------------------------------------ */
 /* prakeaw  (EDISP.ASM _eprakeaw / HDISP.ASM _hprakeaw) - พระเกี้ยว    */
-/* ที่มุมซ้ายบนของจอ                                                  */
 /*                                                                    */
 /*  ต้นฉบับ (_hprakeaw, HDISP.ASM:1073) เขียน 20 word ต่อบล็อก ลง      */
 /*  video memory ตรง ๆ โดย word ที่ n ของแต่ละบล็อกคือ scanline         */
@@ -734,9 +733,12 @@ static void backend_clrline(unsigned int x1, unsigned int y1,
 /*  AH ที่ address สูง (= ขวา) จึงเป็น little-endian; ภายในไบต์บิต 7    */
 /*  คือพิกเซลซ้ายสุด                                                  */
 /*                                                                    */
-/*  บน terminal: หนึ่งเซลล์แทน 8x20 พิกเซล ⇒ 4 เซลล์ = คอลัมน์ 1-4      */
-/*  ในแถว 0 ย่อเป็นอักขระ Braille เซลล์ละ 2x4 ดอท (8x4 ดอททั้งรูป)     */
-/*  ดอทหนึ่งจุดตัดสินจากพื้นที่ย่อย 4x5 พิกเซล ทึบเกิน 40% ถือว่าเปิด     */
+/*  งาน port: **ย้าย**พระเกี้ยวไปวาดที่ splash screen แทนแถบชื่อ        */
+/*  มหาวิทยาลัย — ไทเทิลบาร์มีที่ให้แค่ 4 เซลล์ x 1 บรรทัด (เพดาน 8x4    */
+/*  ดอท) ย่อแล้วเหลือก้อนทึบดูไม่ออกว่าเป็นรูป ส่วน splash มีที่ว่าง     */
+/*  ซ้ายกล่อง 16 เซลล์ x 5 บรรทัด = 32x20 ดอท ⇒ map 1:1 กับ bitmap      */
+/*  ต้นฉบับทุกพิกเซล (ดู `port_draw_crest`) — ต้นฉบับเรียก `prakeaw()`  */
+/*  ตอนเปิดจอ จึงคงฟังก์ชันไว้แต่ไม่วาดในไทเทิลบาร์                      */
 /* ------------------------------------------------------------------ */
 static const unsigned short chulalogo1[20] = {
     0x0200, 0x3200, 0x0d00, 0xfb03,
@@ -754,36 +756,66 @@ static const unsigned short chulalogo2[20] = {
     0xfaff, 0xe400, 0x8a07, 0x00fc
 };
 
-static void backend_prakeaw(void)
+/*  พิกเซล (col, row) ของพระเกี้ยว 32x20 จาก bitmap ต้นฉบับ
+ *  col 0-15 = chulalogo1, col 16-31 = chulalogo2; ภายใน word บิต 7-0
+ *  คือ 8 พิกเซลแรก และบิต 15-8 คือ 8 พิกเซลหลัง (little-endian
+ *  ตามที่ _hprakeaw เขียนด้วย mov es:[di],ax)                        */
+static unsigned int crest_pixel(unsigned int col, unsigned int row)
 {
-    int cell;
+    const unsigned short *blk;
+    unsigned int n, bit;
+
+    if (col >= 32 || row >= 20)
+        return 0;
+
+    blk = (col < 16) ? chulalogo1 : chulalogo2;
+    n   = (col < 16) ? col : col - 16;
+    bit = (n < 8) ? (7 - n) : (15 - (n - 8));
+    return ((unsigned int)blk[row] >> bit) & 1u;
+}
+
+/*  วาดพระเกี้ยวลงตารางเซลล์ (x, y) ขนาด cols x rows เซลล์
+ *  หนึ่งเซลล์แสดงได้ 2x4 ดอทของ Braille และหนึ่งดอท = หนึ่งพิกเซล
+ *  ของ bitmap ⇒ 32x20 พิกเซล = 16x5 เซลล์ (1:1 ไม่ย่อ)              */
+void port_draw_crest(unsigned int x, unsigned int y,
+                     unsigned int cols, unsigned int rows)
+{
+    unsigned int cx, cy;
 
     if (!port_active)
         return;
 
-    for (cell = 0; cell < 4; cell++) {
-        const unsigned short *blk = (cell < 2) ? chulalogo1 : chulalogo2;
-        int half = cell & 1;                 /* ครึ่งซ้าย/ขวาของ blk  */
-        unsigned int mask = 0;
-        int dy, dx, r, c;
-        port_cell *p = &screen[1 + cell];    /* row 0, cols 1..4       */
+    for (cy = 0; cy < rows; cy++)
+        for (cx = 0; cx < cols; cx++) {
+            unsigned int mask = 0;
+            port_cell *p;
+            int k;
 
-        for (dy = 0; dy < 4; dy++)
-            for (dx = 0; dx < 2; dx++) {
-                int ink = 0;
+            if (!in_bounds(x + cx, y + cy))
+                continue;
 
-                for (r = dy * 5; r < dy * 5 + 5; r++)
-                    for (c = dx * 4; c < dx * 4 + 4; c++)
-                        ink += (blk[r] >> ((half * 8) + (7 - c))) & 1;
+            for (k = 0; k < 4; k++) {
+                unsigned int py = cy * 4 + (unsigned int)k;
 
-                if (ink >= 8)                /* 40% ของ 20 พิกเซล      */
-                    mask |= braille_bit[dx][dy];
+                if (py >= 20)
+                    break;
+                if (crest_pixel(cx * 2, py))
+                    mask |= braille_bit[0][k];
+                if (crest_pixel(cx * 2 + 1, py))
+                    mask |= braille_bit[1][k];
             }
 
-        memset(p, 0, sizeof(*p));
-        p->over = (unsigned char)mask;
-        mark_dirty((unsigned int)(1 + cell), 0);
-    }
+            p = &screen[(y + cy) * PORT_SCREEN_COLS + (x + cx)];
+            memset(p, 0, sizeof(*p));
+            p->over = (unsigned char)mask;
+            mark_dirty(x + cx, y + cy);
+        }
+}
+
+static void backend_prakeaw(void)
+{
+    /*  งาน port: พระเกี้ยวถูกย้ายไปวาดที่ splash screen ผ่าน
+     *  port_draw_crest() จึงไม่วาดอะไรในไทเทิลบาร์อีก                */
 }
 
 /* ------------------------------------------------------------------ */

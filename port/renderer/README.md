@@ -40,10 +40,11 @@ DOS byte-buffer sizes (20 bytes per scanline record).
   cell state (so buffer round-trips are lossless).
 - `hsetgraph/esetgraph/asetgraph` are no-ops: terminal setup lives in
   `setgraph()`; `settext()` in the port is `backend_settext_and_end()`.
-- The Chulalongkorn crest (`prakeaw`) blits the real 32x20 DOS bitmap
-  (`chulalogo1`/`chulalogo2`, HDISP.ASM:152,157). A terminal cell can only
-  show 2x4 dots, so it is downsampled to four Braille cells (8x4 dots) —
-  a dot is on when its 4x5 pixel block is >= 40% ink. `port_cell.over`
-  holds the dot mask and renders as `U+2800 + mask`.
+- The Chulalongkorn crest uses the real 32x20 DOS bitmap
+  (`chulalogo1`/`chulalogo2`, HDISP.ASM:152,157) but the port draws it on
+  the **splash screen**, not the title bar: `port_draw_crest()` writes
+  16x5 Braille cells = 32x20 dots, one dot per bitmap pixel (no
+  downsampling). Dot masks live in `port_cell.over` and render as
+  `U+2800 + mask`. `prakeaw()` itself is a no-op in the port.
 - super/subscript and enlarge are recorded per cell but rendered as
   normal glyphs (terminals cannot shift a single cell).

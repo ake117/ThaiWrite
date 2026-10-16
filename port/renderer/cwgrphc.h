@@ -236,6 +236,14 @@ int  port_graph_active(void);
 /* Shadow-screen access.  Returns NULL when out of bounds.            */
 port_cell *port_cell_at(unsigned int x, unsigned int y);
 
+/* Draw the Chulalongkorn crest (prakeaw's 32x20 bitmap) into the
+   shadow screen at cell (x, y), cols x rows cells.  One cell shows
+   2x4 Braille dots and one dot is one bitmap pixel, so the full
+   32x20 crest is 16x5 cells at 1:1 (no downsampling).  Used by the
+   splash screen; the title bar no longer carries the crest.          */
+void port_draw_crest(unsigned int x, unsigned int y,
+                     unsigned int cols, unsigned int rows);
+
 /* Push changed cells of the shadow screen to the terminal and place
    the cursor.  Called automatically by setcurpos (mirrors the DOS
    flow where the screen is up to date while waiting for a key); a

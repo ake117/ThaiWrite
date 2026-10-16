@@ -139,11 +139,12 @@ static void run_assertions(void)
      *  (HDISP.ASM _hprakeaw) => row 0 คอลัมน์ 1-4 ย่อเป็นอักขระ Braille
      *  เก็บดอทมาสก์ใน port_cell.over (แสดงผลเป็น U+2800 + mask)        */
     prakeaw();
-    CHECK(port_cell_at(1, 0)->over == 0x80, "crest col1 dot mask 0x80");
-    CHECK(port_cell_at(2, 0)->over == 0xFE, "crest col2 dot mask 0xFE");
-    CHECK(port_cell_at(3, 0)->over == 0xF7, "crest col3 dot mask 0xF7");
-    CHECK(port_cell_at(4, 0)->over == 0x40, "crest col4 dot mask 0x40");
-    CHECK(port_cell_at(5, 0)->over == 0, "crest stops at col 4");
+    CHECK(port_cell_at(1, 0)->over == 0, "prakeaw leaves the title bar alone");
+    port_draw_crest(1, 7, 16, 5);
+    CHECK(port_cell_at(1, 7)->over == 0x00, "crest cell (0,0) is empty");
+    CHECK(port_cell_at(2, 7)->over == 0x00, "crest cell (1,0) is empty");
+    CHECK(port_cell_at(1 + 8, 7 + 2)->over == 0xD6, "crest cell (8,2) = 0xD6");
+    CHECK(port_cell_at(1 + 15, 7 + 4)->over == 0x05, "crest cell (15,4) = 0x05");
     clsgraph(0, 0, 5, 0);
     prakeaw();
 

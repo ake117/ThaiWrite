@@ -48,6 +48,8 @@ int thaistrlen(char *thaist)
 /*****************************************************************************/
 void dispstrhgc(char *st, unsigned int x, unsigned int y, font_attr attr)
 {
+    char *first = st;
+
     while ((*st != '\0') && (x < 90))
     {
         if ((unsigned char)*st < 32)
@@ -84,6 +86,15 @@ void dispstrhgc(char *st, unsigned int x, unsigned int y, font_attr attr)
             }
         }
         st++;
+    }
+
+    /*  splash screen (SCUW/CW.C main) ปิดกล่องด้วยแถบล่างที่ขึ้นต้นด้วย
+     *  ' ' + 0x9A (มุมล่างซ้าย 0x9A + 0x95...0x9B) — พอวาดบรรทัดนี้
+     *  กล่อง splash ครบแล้ว จึงวาดพระเกี้ยว 32x20 พิกเซล (16x5 เซลล์
+     *  Braille, map 1:1) ทางซ้ายของกล่อง                                */
+    if ((unsigned char)first[0] == ' ' && (unsigned char)first[1] == 0x9A)
+    {
+        port_draw_crest(1, 7, 16, 5);
     }
 }
 
