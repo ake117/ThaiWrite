@@ -305,7 +305,10 @@ static void render_cell(unsigned int x, unsigned int y)
             br[1] = (char)(0xA0 | ((cell->over >> 6) & 0x03));
             br[2] = (char)(0x80 | (cell->over & 0x3F));
             br[3] = '\0';
+            attrs = cell_attr(cell) & A_ATTRIBUTES;
+            attrset(attrs);
             mvaddstr((int)y, (int)x, br);
+            attrset(A_NORMAL);
         }
         return;
     }
@@ -391,7 +394,13 @@ static void render_cell(unsigned int x, unsigned int y)
 
     if (cell->base == 0 && cell->top == 0 && cell->upper == 0 &&
         cell->below == 0) {
+        /*  เซลล์ว่างแต่มี attr (เช่นช่องว่างในแถบ reverse ของ splash หรือ
+         *  เซลล์ที่ไม่มีหมึกของ bitmap blit) ต้องวาดด้วย attr เดิม ไม่งั้น
+         *  จะกลายเป็นช่องดำคั่นกลางแถบขาว                            */
+        attrs = cell_attr(cell) & A_ATTRIBUTES;
+        attrset(attrs);
         mvaddch((int)y, (int)x, ' ');
+        attrset(A_NORMAL);
         return;
     }
 
@@ -778,7 +787,7 @@ static unsigned int crest_pixel(unsigned int col, unsigned int row)
  *  หนึ่งเซลล์แสดงได้ 2x4 ดอทของ Braille และหนึ่งดอท = หนึ่งพิกเซล
  *  ของ bitmap ⇒ 32x20 พิกเซล = 16x5 เซลล์ (1:1 ไม่ย่อ)              */
 void port_draw_crest(unsigned int x, unsigned int y,
-                     unsigned int cols, unsigned int rows)
+                     unsigned int cols, unsigned int rows, font_attr attr)
 {
     unsigned int cx, cy;
 
@@ -808,6 +817,9 @@ void port_draw_crest(unsigned int x, unsigned int y,
             p = &screen[(y + cy) * PORT_SCREEN_COLS + (x + cx)];
             memset(p, 0, sizeof(*p));
             p->over = (unsigned char)mask;
+            /*  ตั้ง attr ให้ทุกเซลล์ (รวมเซลล์ที่ไม่มีหมึก) เพื่อให้พื้น
+             *  ของรูปกลืนกับแถบ splash ที่เป็น reverse video           */
+            p->attr = (unsigned char)attr;
             mark_dirty(x + cx, y + cy);
         }
 }

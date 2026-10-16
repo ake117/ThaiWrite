@@ -140,7 +140,7 @@ static void run_assertions(void)
      *  เก็บดอทมาสก์ใน port_cell.over (แสดงผลเป็น U+2800 + mask)        */
     prakeaw();
     CHECK(port_cell_at(1, 0)->over == 0, "prakeaw leaves the title bar alone");
-    port_draw_crest(1, 7, 16, 5);
+    port_draw_crest(1, 7, 16, 5, NORMALATTR);
     CHECK(port_cell_at(1, 7)->over == 0x00, "crest cell (0,0) is empty");
     CHECK(port_cell_at(2, 7)->over == 0x00, "crest cell (1,0) is empty");
     CHECK(port_cell_at(1 + 8, 7 + 2)->over == 0xD6, "crest cell (8,2) = 0xD6");
@@ -163,6 +163,21 @@ static void run_assertions(void)
         CHECK(a == (BOLDATTR | ITALICATTR | ENLARGEATTR),
               "togglefont ^E sets ENLARGEATTR (not ENLARGECODE)");
     }
+
+    /* --- ENLARGEATTR: เติมครึ่งหลังของอักษรขยาย (กันกล่องดำคั่น) ------ */
+    {
+        char es[] = { 'X', 0 };
+        dispstrhgc(es, 10, 14, ENLARGEATTR);
+        CHECK(port_cell_at(10, 14)->base == 'X', "enlarged char at x=10");
+        CHECK(port_cell_at(11, 14)->base == ' ', "enlarged filler is a blank");
+        CHECK((port_cell_at(11, 14)->attr & ENLARGEATTR) == ENLARGEATTR,
+              "enlarged filler keeps the same attr (no black gap)");
+    }
+
+    /* --- port_draw_crest: attr ตามไปที่เซลล์ (ดำบนขาว) ----------------- */
+    port_draw_crest(1, 16, 16, 5, (font_attr)(NORMALATTR | REVERSEATTR));
+    CHECK(port_cell_at(1, 16)->attr & REVERSEATTR,
+          "crest cells carry REVERSEATTR (black on white)");
 
     /* --- clsall -------------------------------------------------------- */
     prchar('K', 0, 60, 15);

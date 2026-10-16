@@ -39,6 +39,21 @@ int thaistrlen(char *thaist)
     return(count);
 }
 
+/*  แถบบน/ล่างของกล่อง splash — งาน port ขยายกล่องไปทางซ้ายถึงคอลัมน์ 1
+ *  (กว้าง 60 คอลัมน์) เพื่อให้มีที่วางพระเกี้ยวในกล่อง                 */
+static void splash_bar(unsigned int y, unsigned int left, unsigned int right,
+                       font_attr attr)
+{
+    unsigned int x;
+
+    prchar(left, attr, 1, y);
+    for (x = 2; x <= 59; x++)
+    {
+        prchar(0x95, attr, x, y);
+    }
+    prchar(right, attr, 60, y);
+}
+
 /*****************************************************************************/
 /* display string on screen                                                  */
 /*      st   : string to be displayed                                        */
@@ -48,7 +63,32 @@ int thaistrlen(char *thaist)
 /*****************************************************************************/
 void dispstrhgc(char *st, unsigned int x, unsigned int y, font_attr attr)
 {
-    char *first = st;
+    /*  ---- splash screen ของ CW (SCUW/CW.C main) ----------------------
+     *  งาน port ขยายกล่อง splash ไปทางซ้ายถึงคอลัมน์ 1 เพื่อวางพระเกี้ยว
+     *  ไว้ในกล่องซ้ายสุด แล้ววาดเป็น "ดำบนขาว" (REVERSEATTR เหมือนกล่อง)
+     *    - แถบบน/ล่าง (0x98..0x99 / 0x9A..0x9B): วาดเองให้กว้าง 60 col
+     *    - แถวข้อความที่ขึ้นต้นด้วย ' ' + 0x96 (ขอบซ้ายเดิม col 17):
+     *      ย้ายขอบซ้ายมาที่ col 1 แล้วไม่วาด 2 ตัวนั้น (เว้นเป็นช่อง)    */
+    if ((attr & REVERSEATTR) && x >= 16 && y >= 5 && y <= 13)
+    {
+        if (((unsigned char)st[0] == ' ') && ((unsigned char)st[1] == 0x98))
+        {
+            splash_bar(y, 0x98, 0x99, attr);
+            return;
+        }
+        if (((unsigned char)st[0] == ' ') && ((unsigned char)st[1] == 0x9A))
+        {
+            splash_bar(y, 0x9A, 0x9B, attr);
+            port_draw_crest(2, 7, 16, 5, (font_attr)(attr | REVERSEATTR));
+            return;
+        }
+        if (((unsigned char)st[0] == ' ') && ((unsigned char)st[1] == 0x96))
+        {
+            prchar(0x96, attr, 1, y);   /* ขอบซ้ายใหม่ที่คอลัมน์ 1 */
+            st += 2;                    /* ข้าม " " + 0x96 เดิม      */
+            x += 2;
+        }
+    }
 
     while ((*st != '\0') && (x < 90))
     {
@@ -63,6 +103,11 @@ void dispstrhgc(char *st, unsigned int x, unsigned int y, font_attr attr)
                 prchar((unsigned char)*st, attr, x, y);
                 if ((attr & ENLARGEATTR) == ENLARGEATTR)
                 {
+                    /*  ครึ่งหลังของอักษรขยาย: ต้นฉบับยืด glyph ให้กว้าง
+                     *  2 คอลัมน์ แต่ terminal ยืด glyph ไม่ได้ จึงเติม
+                     *  blank ด้วย attr เดียวกัน — ถ้าไม่เติม เซลล์นั้นจะ
+                     *  ค้างเป็นพื้นหลังเดิม เห็นเป็นกล่องดำคั่นกลางแถบ    */
+                    prchar(' ', attr, x + 1, y);
                     x++;
                 }
                 x++;
@@ -88,14 +133,6 @@ void dispstrhgc(char *st, unsigned int x, unsigned int y, font_attr attr)
         st++;
     }
 
-    /*  splash screen (SCUW/CW.C main) ปิดกล่องด้วยแถบล่างที่ขึ้นต้นด้วย
-     *  ' ' + 0x9A (มุมล่างซ้าย 0x9A + 0x95...0x9B) — พอวาดบรรทัดนี้
-     *  กล่อง splash ครบแล้ว จึงวาดพระเกี้ยว 32x20 พิกเซล (16x5 เซลล์
-     *  Braille, map 1:1) ทางซ้ายของกล่อง                                */
-    if ((unsigned char)first[0] == ' ' && (unsigned char)first[1] == 0x9A)
-    {
-        port_draw_crest(1, 7, 16, 5);
-    }
 }
 
 /****************************************************************************/

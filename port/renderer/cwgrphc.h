@@ -242,7 +242,7 @@ port_cell *port_cell_at(unsigned int x, unsigned int y);
    32x20 crest is 16x5 cells at 1:1 (no downsampling).  Used by the
    splash screen; the title bar no longer carries the crest.          */
 void port_draw_crest(unsigned int x, unsigned int y,
-                     unsigned int cols, unsigned int rows);
+                     unsigned int cols, unsigned int rows, font_attr attr);
 
 /* Push changed cells of the shadow screen to the terminal and place
    the cursor.  Called automatically by setcurpos (mirrors the DOS
