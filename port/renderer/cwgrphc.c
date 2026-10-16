@@ -275,26 +275,14 @@ static int dot_vstroke(const port_cell *c, unsigned char bit)
     return (c->dot[0] & bit) && (c->dot[1] & bit) && (c->dot[2] & bit);
 }
 
-/*  glyph ครึ่ง/สี่ส่วนของเซลล์ (U+2580-U+259F) สำหรับ bitmap ที่ DOS
- *  blit ลง video memory ตรง ๆ (prakeaw) — index = UL | UR<<1 | LL<<2
- *  | LR<<3 โดย UL/UR = ครึ่งบนซ้าย/ขวา, LL/LR = ครึ่งล่างซ้าย/ขวา     */
-static const char *const quad_glyph[16] = {
-    " ",                    /*  0                              */
-    "\xe2\x96\x98",         /*  1  ▘ upper-left                 */
-    "\xe2\x96\x9d",         /*  2  ▝ upper-right                */
-    "\xe2\x96\x80",         /*  3  ▀ upper half                 */
-    "\xe2\x96\x96",         /*  4  ▖ lower-left                 */
-    "\xe2\x96\x8c",         /*  5  ▌ left half                  */
-    "\xe2\x96\x9e",         /*  6  ▞ upper-left+lower-right     */
-    "\xe2\x96\x9b",         /*  7  ▛ upper half + lower-left    */
-    "\xe2\x96\x97",         /*  8  ▗ lower-right                */
-    "\xe2\x96\x9a",         /*  9  ▚ upper-left+lower-right     */
-    "\xe2\x96\x90",         /* 10  ▐ right half                 */
-    "\xe2\x96\x9c",         /* 11  ▜ upper half + lower-right   */
-    "\xe2\x96\x84",         /* 12  ▄ lower half                 */
-    "\xe2\x96\x99",         /* 13  ▙ all but upper-right        */
-    "\xe2\x96\x9f",         /* 14  ▟ all but upper-left         */
-    "\xe2\x96\x88"          /* 15  █ full cell                  */
+/*  ดอทบิตของอักขระ Braille (U+2800-U+28FF) — ใช้กับ bitmap ที่ DOS
+ *  blit ลง video memory ตรง ๆ (prakeaw) เพราะหนึ่งเซลล์แสดงได้ 2x4 ดอท
+ *  ละเอียดกว่า half/quadrant block (2x2) สองเท่าในแนวตั้ง
+ *  [คอลัมน์][แถว] : ดอท 1/2/3 = ซ้ายแถว 0/1/2, 4/5/6 = ขวาแถว 0/1/2,
+ *  ดอท 7 = ซ้ายแถว 3, ดอท 8 = ขวาแถว 3                              */
+static const unsigned char braille_bit[2][4] = {
+    { 0x01, 0x02, 0x04, 0x40 },     /* คอลัมน์ซ้าย แถว 0..3 */
+    { 0x08, 0x10, 0x20, 0x80 }      /* คอลัมน์ขวา  แถว 0..3 */
 };
 
 static void render_cell(unsigned int x, unsigned int y)
@@ -307,10 +295,18 @@ static void render_cell(unsigned int x, unsigned int y)
     if (x >= (unsigned)getmaxx(stdscr))
         return;
 
-    /*  bitmap blit (crest logo ฯลฯ) ที่ไม่มีรหัสอักษรใน TIS-620      */
+    /*  bitmap blit (crest logo ฯลฯ): port_cell.over = ดอทมาสก์ของ
+     *  อักขระ Braille (U+2800 + mask) ที่ย่อจาก bitmap ต้นฉบับ        */
     if (cell->over) {
-        if ((int)y < getmaxy(stdscr))
-            mvaddstr((int)y, (int)x, quad_glyph[cell->over & 0x0F]);
+        if ((int)y < getmaxy(stdscr)) {
+            char br[4];
+
+            br[0] = (char)0xE2;
+            br[1] = (char)(0xA0 | ((cell->over >> 6) & 0x03));
+            br[2] = (char)(0x80 | (cell->over & 0x3F));
+            br[3] = '\0';
+            mvaddstr((int)y, (int)x, br);
+        }
         return;
     }
 
@@ -728,11 +724,19 @@ static void backend_clrline(unsigned int x1, unsigned int y1,
 /* prakeaw  (EDISP.ASM _eprakeaw / HDISP.ASM _hprakeaw) - พระเกี้ยว    */
 /* ที่มุมซ้ายบนของจอ                                                  */
 /*                                                                    */
-/*  ต้นฉบับ blit ข้อมูล 20 word (20 scanline x 16 พิกเซล) จาก         */
-/*  chulalogo1 (HDISP.ASM:152) ที่ scanline 2 byte column 1 และ        */
-/*  chulalogo2 (บรรทัด 157) ที่ byte column 3 => ครึ่งซ้าย/ขวาของรูป   */
-/*  รวม 32x20 พิกเซล ครอบคลุม row 0 คอลัมน์ 1-4 ของจอ terminal        */
-/*  เซลล์ละ 8x20 พิกเซล จึงย่อแต่ละเซลล์เป็น quadrant block            */
+/*  ต้นฉบับ (_hprakeaw, HDISP.ASM:1073) เขียน 20 word ต่อบล็อก ลง      */
+/*  video memory ตรง ๆ โดย word ที่ n ของแต่ละบล็อกคือ scanline         */
+/*  หนึ่งแถว ๆ ละ 16 พิกเซล: chulalogo1 (HDISP.ASM:152) ที่ byte        */
+/*  column 1 (px 8-23) และ chulalogo2 (บรรทัด 157) ที่ byte column 3    */
+/*  (px 24-39) รวมเป็นรูป 32x20 พิกเซล เริ่มที่ scanline 2              */
+/*                                                                    */
+/*  ลำดับไบต์: `mov es:[di],ax` เก็บ AL ที่ address ต่ำ (= ซ้าย) และ    */
+/*  AH ที่ address สูง (= ขวา) จึงเป็น little-endian; ภายในไบต์บิต 7    */
+/*  คือพิกเซลซ้ายสุด                                                  */
+/*                                                                    */
+/*  บน terminal: หนึ่งเซลล์แทน 8x20 พิกเซล ⇒ 4 เซลล์ = คอลัมน์ 1-4      */
+/*  ในแถว 0 ย่อเป็นอักขระ Braille เซลล์ละ 2x4 ดอท (8x4 ดอททั้งรูป)     */
+/*  ดอทหนึ่งจุดตัดสินจากพื้นที่ย่อย 4x5 พิกเซล ทึบเกิน 40% ถือว่าเปิด     */
 /* ------------------------------------------------------------------ */
 static const unsigned short chulalogo1[20] = {
     0x0200, 0x3200, 0x0d00, 0xfb03,
@@ -760,29 +764,24 @@ static void backend_prakeaw(void)
     for (cell = 0; cell < 4; cell++) {
         const unsigned short *blk = (cell < 2) ? chulalogo1 : chulalogo2;
         int half = cell & 1;                 /* ครึ่งซ้าย/ขวาของ blk  */
-        int ul = 0, ur = 0, ll = 0, lr = 0;
-        int r, c;
+        unsigned int mask = 0;
+        int dy, dx, r, c;
         port_cell *p = &screen[1 + cell];    /* row 0, cols 1..4       */
 
-        for (r = 0; r < 20; r++)
-            for (c = 0; c < 8; c++) {
-                int bit = (blk[r] >> (15 - (half * 8 + c))) & 1;
+        for (dy = 0; dy < 4; dy++)
+            for (dx = 0; dx < 2; dx++) {
+                int ink = 0;
 
-                if (!bit)
-                    continue;
-                if (r < 10) {
-                    if (c < 4) ul++; else ur++;
-                } else {
-                    if (c < 4) ll++; else lr++;
-                }
+                for (r = dy * 5; r < dy * 5 + 5; r++)
+                    for (c = dx * 4; c < dx * 4 + 4; c++)
+                        ink += (blk[r] >> ((half * 8) + (7 - c))) & 1;
+
+                if (ink >= 8)                /* 40% ของ 20 พิกเซล      */
+                    mask |= braille_bit[dx][dy];
             }
 
-        /*  quadrant ที่มีพิกเซลเกิน 40% (16 จาก 40) ถือว่าทึบ       */
         memset(p, 0, sizeof(*p));
-        p->over = (unsigned char)((ul > 16 ? 0x01 : 0) |
-                                  (ur > 16 ? 0x02 : 0) |
-                                  (ll > 16 ? 0x04 : 0) |
-                                  (lr > 16 ? 0x08 : 0));
+        p->over = (unsigned char)mask;
         mark_dirty((unsigned int)(1 + cell), 0);
     }
 }

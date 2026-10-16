@@ -135,14 +135,14 @@ static void run_assertions(void)
           "plot sets dot bit");
 
     /* --- prakeaw ------------------------------------------------------ */
-    /*  พระเกี้ยว = bitmap blit 32x20 px ที่ scanline 2/byte col 1 และ
-     *  3 (EDISP.ASM _eprakeaw) => row 0 คอลัมน์ 1-4 เซลล์ละ quadrant
-     *  block (port_cell.over)                                          */
+    /*  พระเกี้ยว = bitmap blit 32x20 px ที่ byte column 1 และ 3
+     *  (HDISP.ASM _hprakeaw) => row 0 คอลัมน์ 1-4 ย่อเป็นอักขระ Braille
+     *  เก็บดอทมาสก์ใน port_cell.over (แสดงผลเป็น U+2800 + mask)        */
     prakeaw();
-    CHECK(port_cell_at(1, 0)->over != 0, "prakeaw crest cell 1");
-    CHECK(port_cell_at(2, 0)->over != 0, "prakeaw crest cell 2");
-    CHECK(port_cell_at(3, 0)->over != 0, "prakeaw crest cell 3");
-    CHECK(port_cell_at(4, 0)->over != 0, "prakeaw crest cell 4");
+    CHECK(port_cell_at(1, 0)->over == 0x80, "crest col1 dot mask 0x80");
+    CHECK(port_cell_at(2, 0)->over == 0xFE, "crest col2 dot mask 0xFE");
+    CHECK(port_cell_at(3, 0)->over == 0xF7, "crest col3 dot mask 0xF7");
+    CHECK(port_cell_at(4, 0)->over == 0x40, "crest col4 dot mask 0x40");
     CHECK(port_cell_at(5, 0)->over == 0, "crest stops at col 4");
     clsgraph(0, 0, 5, 0);
     prakeaw();
