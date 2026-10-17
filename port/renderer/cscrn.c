@@ -323,11 +323,20 @@ void blockmsg(int y)
 /****************************************************************************/
 /*  Save content of screen. Return pointer to content of screen.            */
 /****************************************************************************/
+/*  ระหว่าง popup (dropdown menu / กล่องข้อความ) ต้นฉบับวาดกรอบบนที่พิกเซล
+ *  y*20+2 คือ *แถวเดียวกับ ruler* (ruler อยู่พิกเซล y*20) ทำให้กรอบบนของ
+ *  dropdown หลอมเป็นเส้นเดียวกับ ruler — terminal แยกไม่ได้
+ *  => เลื่อนการวาดของ popup ลง 1 แถว (ดู port_popup_shift) ให้กรอบบนมี
+ *     แถวของตัวเอง แล้ว save/restore เพิ่มอีก 1 แถวไม่ให้เหลือเศษ        */
+int port_popup_shift = 0;
+#define PORT_POPUP_FIRST_ROW_PX 60      /* แถว 3 ขึ้นไปเท่านั้นที่เลื่อน */
+
 char *savescrn(int x1, int y1, int x2, int y2)
 {
     char *scrnindex;
+    int extra = 1;   /* popup จะถูกวาดเลื่อนลง 1 แถวหลัง save — ต้องเผื่อไว้ */
 
-    scrnindex = (char *) malloc((x2 - x1 + 1) * (y2 - y1 + 1) * 20);
+    scrnindex = (char *) malloc((x2 - x1 + 1) * (y2 - y1 + 1 + extra) * 20);
     if (scrnindex == NULL)
     {
         savepic();
@@ -337,7 +346,8 @@ char *savescrn(int x1, int y1, int x2, int y2)
         return(NULL);
     }
 
-    (*getwind_ptr)(x1, y1, (y2 - y1 + 1) * 20, (x2 - x1 + 1), scrnindex);
+    (*getwind_ptr)(x1, y1, (y2 - y1 + 1 + extra) * 20, (x2 - x1 + 1), scrnindex);
+    port_popup_shift = 1;                   /* ต่อจากนี้วาด popup เลื่อนลง */
     return(scrnindex);
 }
 
@@ -346,12 +356,16 @@ char *savescrn(int x1, int y1, int x2, int y2)
 /****************************************************************************/
 void resscrn(char *scrnindex, int x1, int y1, int x2, int y2)
 {
+    int extra = port_popup_shift ? 1 : 0;
+
     if (scrnindex == NULL)
     {
+        port_popup_shift = 0;
         retpic();
         return;
     }
-    (*putwind_ptr)(x1, y1, (y2 - y1 + 1) * 20, (x2 - x1 + 1), scrnindex);
+    (*putwind_ptr)(x1, y1, (y2 - y1 + 1 + extra) * 20, (x2 - x1 + 1), scrnindex);
+    port_popup_shift = 0;
     free(scrnindex);
 }
 
@@ -386,6 +400,13 @@ void _line(int x1, int y1, int x2, int y2)
 {
     int x, y;
     int delx, dely;
+
+    /*  popup เลื่อนลง 1 แถว (ดู port_popup_shift)                    */
+    if (port_popup_shift && y1 >= PORT_POPUP_FIRST_ROW_PX)
+    {
+        y1 += 20;
+        y2 += 20;
+    }
     int s1, s2, change, weight, temp, i;
 
     x = x1;

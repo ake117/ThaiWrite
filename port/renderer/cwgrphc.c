@@ -657,11 +657,15 @@ static void slot_xor(unsigned char *slot, unsigned char c)
     *slot = (*slot == c) ? 0 : c;
 }
 
+extern int port_popup_shift;      /* cscrn.c: popup เลื่อนลง 1 แถว */
+
 static void backend_prchar(unsigned int c, unsigned int attr,
                            unsigned int x, unsigned int y)
 {
     port_cell *cell;
 
+    if (port_popup_shift && y >= 3)
+        y += 1;
     if (!in_bounds(x, y))
         return;
     cell = &screen[y * PORT_SCREEN_COLS + x];
@@ -695,6 +699,8 @@ static void backend_prblank(unsigned int x, unsigned int y)
 {
     port_cell *cell;
 
+    if (port_popup_shift && y >= 3)
+        y += 1;
     if (!in_bounds(x, y))
         return;
     cell = &screen[y * PORT_SCREEN_COLS + x];
