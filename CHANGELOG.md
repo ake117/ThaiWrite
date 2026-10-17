@@ -24,6 +24,8 @@ repo: <https://github.com/ake117/ThaiWrite> · branch `port/linux-terminal`
 
 ## [v0.0002] — 2026-10-17
 
+[Release](https://github.com/ake117/ThaiWrite/releases/tag/v0.0002) · tag `v0.0002`
+
 milestone 2: พระเกี้ยว/splash screen สมบูรณ์ + แก้บั๊กที่เจอจากการใช้งานจริง
 
 ### เพิ่ม
@@ -71,6 +73,8 @@ milestone 2: พระเกี้ยว/splash screen สมบูรณ์ + �
 ---
 
 ## [v0.0001] — 2026-10-14
+
+[Release](https://github.com/ake117/ThaiWrite/releases/tag/v0.0001) · tag `v0.0001`
 
 milestone แรกที่รันใช้งานได้จริงบน terminal
 
