@@ -56,9 +56,31 @@ static struct termios shim_saved_tio;
 static int  shim_tio_saved;
 static int  shim_stdin_eof;
 
+/*  debug: CW_KEY_DEBUG=<ไฟล์> บันทึก keycode ทุกตัวที่ถอดได้
+ *  (ใช้ไล่ปัญหา "ปุ่มไม่ทำงาน" ว่าคีย์ไปถึงแอปหรือไม่)               */
+static void shim_key_debug(int keycode)
+{
+    static FILE *dbg;
+    static int tried;
+
+    if (!tried) {
+        const char *path = getenv("CW_KEY_DEBUG");
+
+        tried = 1;
+        if (path != NULL && *path != '\0')
+            dbg = fopen(path, "a");
+    }
+    if (dbg != NULL) {
+        fprintf(dbg, "%04x\n", keycode & 0xFFFF);
+        fflush(dbg);
+    }
+}
+
 static void shim_kq_push(int keycode)
 {
     int next = (shim_kq_tail + 1) % SHIM_KQ_SIZE;
+
+    shim_key_debug(keycode);
 
     if (next == shim_kq_head)
     {

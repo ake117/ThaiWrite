@@ -98,6 +98,7 @@ DOS byte-buffer sizes (20 bytes per scanline record).
 | `CW_DUMP_DOT=<file>` | dump the coarse dot bitmap of every cell (`y= x= d0= d1= d2=`) |
 | `CW_DUMP_ATTR=<file>` | dump every cell's `attr` byte as 2 hex digits — the way to tell a *white* cell (`attr & 0x02`) from one that kept the background |
 | `CW_DEBUG_FLUSH` | print terminal size / dirty-cell counts per flush to stderr |
+| `CW_KEY_DEBUG=<file>` | *(shim)* log every decoded DOS keycode (4 hex digits) — ใช้ไล่ปัญหา "ปุ่มกดแล้วไม่ทำงาน" ว่าคีย์ไปถึงแอปหรือไม่ |
 
 `CW_DUMP_ATTR` is what caught the black bars above and below the crest:
 rows 6 and 12 of the crest band had `attr 00` while the rest of the box

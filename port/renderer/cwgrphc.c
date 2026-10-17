@@ -286,16 +286,28 @@ static void place_cursor(unsigned int x, unsigned int y, int thaimode)
 /* dot-cell geometry: dot[] เก็บ mask ของคอลัมน์พิกเซลต่อกลุ่มแถว      */
 /* ------------------------------------------------------------------ */
 /*  เส้นนอน = ทุกคอลัมน์ของกลุ่มเดียวถูกเปิด (0xff)                    */
+/*  มีช่วงเส้นนอนในเซลล์ไหม — บิตติดกัน >= 2 บิตในกลุ่มพิกเซลใดกลุ่มหนึ่ง
+ *  (เส้นกว้าง 1 พิกเซล แต่ยาวได้หลายพิกเซล และเซลล์ที่อยู่ปลายเส้นอาจมี
+ *  แค่ 2 พิกเซลสุดท้าย เช่นมุมขวาล่างของกรอบ)                        */
 static int dot_hstroke(const port_cell *c)
 {
-    return (c->dot[0] == 0xff) || (c->dot[1] == 0xff) || (c->dot[2] == 0xff);
+    int g;
+
+    for (g = 0; g < 3; g++) {
+        unsigned char b = c->dot[g];
+
+        if (b == 0xff)
+            return 1;
+        if (b & (unsigned char)(b >> 1))        /* บิตติดกัน >= 2 */
+            return 1;
+    }
+    return 0;
 }
 
-/*  เส้นตั้ง = บิตเดียวถูกเปิดซ้ำในทุกกลุ่ม (bit 0x01 = ขอบซ้าย,       */
-/*  0x80 = ขอบขวา ของเซลล์)                                           */
-static int dot_vstroke(const port_cell *c, unsigned char bit)
+/*  เส้นตั้ง = บิตเดียวกันถูกเปิดในทุกกลุ่มพิกเซล (คอลัมน์พิกเซลใดก็ได้) */
+static int dot_vstroke_any(const port_cell *c)
 {
-    return (c->dot[0] & bit) && (c->dot[1] & bit) && (c->dot[2] & bit);
+    return (c->dot[0] & c->dot[1] & c->dot[2]) != 0;
 }
 
 /*  ดอทบิตของอักขระ Braille (U+2800-U+28FF) — ใช้กับ bitmap ที่ DOS
@@ -360,33 +372,28 @@ static void render_cell(unsigned int x, unsigned int y)
         /*  ตรวจว่าเส้นในเซลล์นี้ต่อไปยังเซลล์ข้างเคียงหรือไม่ แล้วเลือก
          *  อักษรเส้นบางให้ตรงรูป (มุม/สามแยก/กากบาท) — เส้นต้นฉบับ
          *  กว้าง 1 พิกเซล ครึ่งบล็อกจึงดูหนาเกินจริง                     */
-        int has_h = (d0 == 0xff) || (d1 == 0xff) || (d2 == 0xff);
-        int vbit  = ((d0 & 0x01) && (d1 & 0x01) && (d2 & 0x01)) ? 0x01
-                  : ((d0 & 0x80) && (d1 & 0x80) && (d2 & 0x80)) ? 0x80
-                  : 0x00;
+        int has_h = dot_hstroke(cell);      /* มีช่วงเส้นนอน >= 2 px      */
+        int vbit  = (int)(d0 & d1 & d2);    /* เส้นตั้ง (คอลัมน์ใดก็ได้)  */
         int up = 0, down = 0, lft = 0, rgt = 0;
         const char *glyph;
 
+        /*  เส้นของต้นฉบับกว้าง 1 พิกเซลและลากผ่าน *ขอบ* เซลล์ เซลล์มุมจึง
+         *  มีบิตเส้นไม่ครบ (มุมขวาล่างเหลือแค่ 2 พิกเซลปลายเส้น) — ตัดสิน
+         *  รูปจากเซลล์ข้างเคียง ไม่ใช่จากบิตในเซลล์นี้เซลล์เดียว         */
         /*  เซลล์ที่ทับด้วย bitmap blit (over) ล้าง dot ทิ้ง แต่เส้น
          *  ต้นฉบับลากผ่านใต้รูป ต้องนับว่ายังต่อกันอยู่               */
-        if (has_h) {
-            if (x > 0 && (dot_hstroke(&screen[y * PORT_SCREEN_COLS + x - 1]) ||
-                          screen[y * PORT_SCREEN_COLS + x - 1].over))
-                lft = 1;
-            if (x + 1 < PORT_SCREEN_COLS &&
-                (dot_hstroke(&screen[y * PORT_SCREEN_COLS + x + 1]) ||
-                 screen[y * PORT_SCREEN_COLS + x + 1].over))
-                rgt = 1;
-        }
-        if (vbit) {
-            if (y > 0 && dot_vstroke(&screen[(y - 1) * PORT_SCREEN_COLS + x],
-                                     (unsigned char)vbit))
-                up = 1;
-            if (y + 1 < PORT_SCREEN_ROWS &&
-                dot_vstroke(&screen[(y + 1) * PORT_SCREEN_COLS + x],
-                            (unsigned char)vbit))
-                down = 1;
-        }
+        if (x > 0 && (dot_hstroke(&screen[y * PORT_SCREEN_COLS + x - 1]) ||
+                      screen[y * PORT_SCREEN_COLS + x - 1].over))
+            lft = 1;
+        if (x + 1 < PORT_SCREEN_COLS &&
+            (dot_hstroke(&screen[y * PORT_SCREEN_COLS + x + 1]) ||
+             screen[y * PORT_SCREEN_COLS + x + 1].over))
+            rgt = 1;
+        if (y > 0 && dot_vstroke_any(&screen[(y - 1) * PORT_SCREEN_COLS + x]))
+            up = 1;
+        if (y + 1 < PORT_SCREEN_ROWS &&
+            dot_vstroke_any(&screen[(y + 1) * PORT_SCREEN_COLS + x]))
+            down = 1;
 
         if (up && down && lft && rgt)
             glyph = "\xe2\x94\xbc";              /* ┼  cross            */
@@ -923,29 +930,33 @@ void hputwind(unsigned int x1, unsigned int y1, unsigned int linecount,
 void hgetwind(unsigned int x1, unsigned int y1, unsigned int linecount,
               unsigned int bytecount, char *buffer)
 {
-    unsigned int row, x, y, i, n;
+    unsigned int cols = bytecount;                  /* คอลัมน์ของหน้าต่าง */
+    unsigned int rows = linecount / PORT_CELL_SIZE; /* แถวเซลล์          */
+    unsigned int r, c, s;
 
-    if (buffer == NULL)
+    if (buffer == NULL || cols == 0)
         return;
-    n = bytecount < PORT_CELL_SIZE ? bytecount : PORT_CELL_SIZE;
-    /* DOS layout: record r (r = 0..linecount-1) is scanline           */
-    /* (y1*20 + r) of column strip x1, stored at buffer[r*bytecount].  */
-    /* One 20-byte record per screen-cell row: cell row y uses records */
-    /* y*20 .. y*20+19, all holding the same cell state (the cell is   */
-    /* the unit; splitting it across records would lose overlays).     */
-    /* Only the first `n` bytes of each record are written when the    */
-    /* caller's records are narrower than a full cell.                 */
-    for (row = 0; row < linecount; row++) {
-        y = y1 + row / PORT_CELL_SIZE;
-        x = x1;
-        i = row * bytecount;
-        if (y < PORT_SCREEN_ROWS && x < PORT_SCREEN_COLS) {
+
+    /*  DOS layout: buffer[(scanline) * cols + column] หนึ่งไบต์ต่อ
+     *  หนึ่งพิกเซลแถวของเซลล์ (cell = 8x20 px) ⇒ linecount แถวพิกเซล
+     *  x cols คอลัมน์ · port เก็บสถานะเซลล์ได้ 9 ไบต์ จึงเขียนลง
+     *  scanline 0..8 ของคอลัมน์นั้น และปล่อย 9..19 เป็นศูนย์
+     *  (ขนาดบัฟเฟอร์ยังเท่าต้นฉบับ: rows*20*cols)                    */
+    memset(buffer, 0, (size_t)linecount * cols);
+
+    for (r = 0; r < rows; r++) {
+        for (c = 0; c < cols; c++) {
+            unsigned int x = x1 + c;
+            unsigned int y = y1 + r;
             unsigned char tmp[PORT_CELL_SIZE];
-            serialize_cell(&screen[y * PORT_SCREEN_COLS + x], tmp);
-            memcpy(&buffer[i], tmp, n);
-        }
-        else {
-            memset(&buffer[i], 0, n);
+
+            if (x < PORT_SCREEN_COLS && y < PORT_SCREEN_ROWS)
+                serialize_cell(&screen[y * PORT_SCREEN_COLS + x], tmp);
+            else
+                memset(tmp, 0, sizeof(tmp));
+
+            for (s = 0; s < PORT_CELL_SIZE; s++)
+                buffer[(r * PORT_CELL_SIZE + s) * cols + c] = (char)tmp[s];
         }
     }
 }
@@ -953,21 +964,27 @@ void hgetwind(unsigned int x1, unsigned int y1, unsigned int linecount,
 void hputwind(unsigned int x1, unsigned int y1, unsigned int linecount,
               unsigned int bytecount, char *buffer)
 {
-    unsigned int row, x, y, i, n;
+    unsigned int cols = bytecount;
+    unsigned int rows = linecount / PORT_CELL_SIZE;
+    unsigned int r, c, s;
 
-    if (buffer == NULL)
+    if (buffer == NULL || cols == 0)
         return;
-    n = bytecount < PORT_CELL_SIZE ? bytecount : PORT_CELL_SIZE;
-    for (row = 0; row < linecount; row++) {
-        unsigned char tmp[PORT_CELL_SIZE];
-        i = row * bytecount;
-        memset(tmp, 0, sizeof(tmp));
-        memcpy(tmp, &buffer[i], n);
-        y = y1 + row / PORT_CELL_SIZE;
-        x = x1;
-        if (y < PORT_SCREEN_ROWS && x < PORT_SCREEN_COLS) {
-            deserialize_cell(tmp, &screen[y * PORT_SCREEN_COLS + x]);
-            mark_dirty(x, y);
+
+    for (r = 0; r < rows; r++) {
+        for (c = 0; c < cols; c++) {
+            unsigned int x = x1 + c;
+            unsigned int y = y1 + r;
+            unsigned char tmp[PORT_CELL_SIZE];
+
+            memset(tmp, 0, sizeof(tmp));
+            for (s = 0; s < PORT_CELL_SIZE; s++)
+                tmp[s] = (unsigned char)buffer[(r * PORT_CELL_SIZE + s) * cols + c];
+
+            if (x < PORT_SCREEN_COLS && y < PORT_SCREEN_ROWS) {
+                deserialize_cell(tmp, &screen[y * PORT_SCREEN_COLS + x]);
+                mark_dirty(x, y);
+            }
         }
     }
     port_flush();

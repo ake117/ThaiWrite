@@ -106,27 +106,47 @@ static void run_assertions(void)
           port_cell_at(30, 9)->attr == REVERSEATTR,
           "retpic restores cell");
 
-    /* --- getwind / putwind (port byte layout) ------------------------- */
-    /* Layout: record r (0..linecount-1) at buf[r*bytecount] holds the  */
-    /* cell at (x1, y1 + r/20); min(bytecount,20) bytes of cell state.  */
+    /* --- getwind / putwind (DOS layout: scanline*cols + column) ------ */
     {
         char buf[40 * 20];
+
         memset(buf, 0, sizeof(buf));
         prchar('W', BOLDATTR, 40, 6);
+        prchar('X', 0, 41, 6);              /* คอลัมน์ที่ 2 ของหน้าต่าง */
         prchar('S', 0, 40, 7);
         (*getwind_ptr)(40, 6, 40, 20, buf);
-        CHECK((unsigned char)buf[0] == 'W', "getwind row0 base");
-        CHECK((unsigned char)buf[4] == BOLDATTR, "getwind carries attr");
-        CHECK((unsigned char)buf[19 * 20] == 'W',
-              "getwind same cell for records 0-19");
+        CHECK((unsigned char)buf[0] == 'W', "getwind (row0,col0) base");
+        CHECK((unsigned char)buf[1] == 'X', "getwind เก็บคอลัมน์ที่ 2 ด้วย");
+        CHECK((unsigned char)buf[4 * 20] == BOLDATTR, "getwind carries attr");
+        CHECK((unsigned char)buf[9 * 20] == 0, "getwind scanline 9 = padding");
         CHECK((unsigned char)buf[20 * 20] == 'S', "getwind row1 base");
         prblank(40, 6);
+        prblank(41, 6);
         prblank(40, 7);
         (*putwind_ptr)(40, 6, 40, 20, buf);
         CHECK(port_cell_at(40, 6)->base == 'W', "putwind restores W");
+        CHECK(port_cell_at(41, 6)->base == 'X', "putwind restores 2nd column");
         CHECK(port_cell_at(40, 6)->attr == BOLDATTR,
               "putwind restores attr");
         CHECK(port_cell_at(40, 7)->base == 'S', "putwind restores S");
+    }
+
+    /* --- getwind/putwind ต้องพา dot ไปด้วย (กรอบ dropdown menu) ------ */
+    {
+        char dbuf[20];
+
+        clsall();
+        plot(6, 5);                    /* pixel (6,5) = เซลล์ (0,0) */
+        plot(7, 5);
+        CHECK(port_cell_at(0, 0)->dot[0] != 0, "plot วางดอทในเซลล์ (0,0)");
+        memset(dbuf, 0, sizeof(dbuf));
+        (*getwind_ptr)(0, 0, 20, 1, dbuf);
+        CHECK((unsigned char)dbuf[5] != 0, "getwind เก็บ dot ไว้");
+        clsall();
+        CHECK(port_cell_at(0, 0)->dot[0] == 0, "clsall ล้างดอท");
+        (*putwind_ptr)(0, 0, 20, 1, dbuf);
+        CHECK(port_cell_at(0, 0)->dot[0] != 0, "putwind คืน dot (กรอบเมนู)");
+        clsall();
     }
 
     /* --- plot --------------------------------------------------------- */
