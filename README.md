@@ -5,7 +5,11 @@
 DOSBox หรือ emulator ใด ๆ และเน้น **export-first**: พิมพ์/แก้เอกสารไทยใน terminal แล้ว
 export เป็น `.docx` `.odt` `.html` `.md` `.txt` `.pdf` ได้ทันที
 
-> **สถานะ:** งาน port ระหว่างพัฒนา — ยังไม่ release
+> **สถานะ:** milestone 2 — [`v0.0002`](https://github.com/ake117/ThaiWrite/releases/tag/v0.0002)
+> ใช้งานได้จริง (เปิด/แก้/บันทึก/เมนู/splash) แต่ยังไม่ครบฟีเจอร์ของต้นฉบับ
+> (โมดูล printing ยังไม่รวม) · ประวัติเวอร์ชันทั้งหมดอยู่ที่
+> **[`CHANGELOG.md`](CHANGELOG.md)**
+>
 > **Repo นี้เป็น fork ของ** [kytulendu/ThaiWrite](https://github.com/kytulendu/ThaiWrite)
 > (source CU Writer 1.41 ฉบับดั้งเดิม) · **ไฟล์ต้นฉบับใต้ `SRC/` ไม่ถูกแก้ไข** ยังเหมือน
 > upstream เป๊ะ ตรวจสอบได้ด้วย `tools/check-src-pristine.sh`
