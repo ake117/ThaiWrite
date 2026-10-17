@@ -327,10 +327,21 @@ static const unsigned char braille_bit[2][4] = {
  *  แก้: ย้ายเส้นคั่นมาเป็นขีดเส้นใต้ของแถวข้อความ (ตำแหน่งเดียวกับที่ DOS
  *  วางเส้น คือใต้ตัวอักษร) แล้วระงับเส้นนอนของ dot layer ในแถบนี้        */
 #define PORT_UI_BAND_ROWS 3
+/*  ความกว้างจอ DOS จริง (640 px / 8) — ต้องตัดเส้นที่คอลัมน์ 0 และ 79
+ *  ไม่ให้ขีดเส้นใต้ล้ำกรอบซ้าย/ขวาออกไป                        */
+#define PORT_DOS_COLS 80
 
 static int ui_band_row(unsigned int y)
 {
     return y < PORT_UI_BAND_ROWS;
+}
+
+/*  ขีดเส้นใต้เฉพาะแถวชื่อมหาลัย/เมนูบาร์ (ไม่รวมแถบสถานะตามที่ตกลง)
+ *  และไม่ทับคอลัมน์กรอบซ้าย/ขวา                                */
+static int ui_underline_cell(unsigned int x, unsigned int y)
+{
+    return y + 1 < PORT_UI_BAND_ROWS &&
+           x > 0 && x + 1 < PORT_DOS_COLS;
 }
 
 static void render_cell(unsigned int x, unsigned int y)
@@ -450,7 +461,7 @@ static void render_cell(unsigned int x, unsigned int y)
          *  (ดู ui_band_row) — ไม่วาดซ้ำ ไม่งั้นจะเห็นเส้นคู่            */
         if (band && !vbit && has_h && !up && !down) {
             if ((int)y < getmaxy(stdscr)) {
-                attrset(A_UNDERLINE);
+                attrset(ui_underline_cell(x, y) ? A_UNDERLINE : A_NORMAL);
                 mvaddch((int)y, (int)x, ' ');
                 attrset(A_NORMAL);
             }
@@ -468,7 +479,7 @@ static void render_cell(unsigned int x, unsigned int y)
          *  เซลล์ที่ไม่มีหมึกของ bitmap blit) ต้องวาดด้วย attr เดิม ไม่งั้น
          *  จะกลายเป็นช่องดำคั่นกลางแถบขาว                            */
         attrs = cell_attr(cell) & A_ATTRIBUTES;
-        if (band)
+        if (ui_underline_cell(x, y))
             attrs |= A_UNDERLINE;
         attrset(attrs);
         mvaddch((int)y, (int)x, ' ');
@@ -491,7 +502,7 @@ static void render_cell(unsigned int x, unsigned int y)
     buf[n] = '\0';
 
     attrs = cell_attr(cell) & A_ATTRIBUTES;
-    if (band)
+    if (ui_underline_cell(x, y))
         attrs |= A_UNDERLINE;
     attrset(attrs);
     mvaddstr((int)y, (int)x, buf);
