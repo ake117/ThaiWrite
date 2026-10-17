@@ -16,9 +16,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#ifndef CW_PORT_VERSION
-#define CW_PORT_VERSION "unknown"
-#endif
+#include "version.h"           /* สร้างตอน build จาก git describe */
 
 #define CW_BASE_VERSION "CU Writer 1.41"
 
