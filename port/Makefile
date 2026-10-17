@@ -33,7 +33,10 @@ INC_T   = -Ishim -iquote shim/geninc/scuw/thaisep $(Q_COMMON) $(Q_SCUW) $(Q_SCUF
 
 SRC     = ../SRC
 BUILD   = build
-LIBS    = shim/libtwshim.a renderer/libtwrenderer.a -lncursesw -lm
+# port_cli.o ต้องลิงก์ตรง ๆ (ไม่ผ่าน archive): static library จะตัด object
+# ที่ไม่มีใครอ้างอิงทิ้ง ทำให้ constructor ของ cw --version ไม่ถูกเรียก
+LIBS    = shim/libtwshim.a renderer/libtwrenderer.a renderer/port_cli.o \
+          -lncursesw -lm
 
 COMMON  = EKBD DIR FILEUTIL GRDETECT CUSONG STAMPDAT
 SCUW    = SCRN GETSTR TUTIL1 EDIT INS DEL MENU KBD STATUS \
@@ -49,8 +52,12 @@ OBJS    = $(C_OBJS) $(W_OBJS) $(T_OBJS)
 
 all: cw
 
-cw: $(OBJS) shim/libtwshim.a renderer/libtwrenderer.a
+cw: $(OBJS) shim/libtwshim.a renderer/libtwrenderer.a renderer/port_cli.o
 	$(CC) -o $@ $(OBJS) $(LIBS)
+
+# สร้าง object ของ renderer ด้วย Makefile ของ renderer เอง
+renderer/port_cli.o: renderer/port_cli.c
+	$(MAKE) -C renderer port_cli.o
 
 $(BUILD):
 	mkdir -p $(BUILD)

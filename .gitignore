@@ -12,3 +12,6 @@ port/cw
 # -> ผูกกับ path ของเครื่อง สร้างใหม่ได้ด้วย `make -C port/shim geninc`
 port/shim/geninc/
 exports/
+
+# ---- ภาพ/สกรีนช็อตที่ใช้คุยกัน (ไม่ใช่ของโปรเจกต์) ----
+images/

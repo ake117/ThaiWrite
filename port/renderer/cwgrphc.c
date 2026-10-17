@@ -38,6 +38,9 @@
 #include <stdarg.h>
 #include <locale.h>
 #include <unistd.h>
+#include <signal.h>
+#include <termios.h>
+#include <sys/ioctl.h>
 #include <sys/ioctl.h>
 
 #include <ncurses.h>
@@ -333,7 +336,14 @@ static void render_cell(unsigned int x, unsigned int y)
         return;
     }
 
-    if (cell->dot[0] | cell->dot[1] | cell->dot[2]) {
+    /*  เซลล์ที่มีทั้งข้อความและเส้นกราฟิก: DOS วาดคนละแถวพิกเซลในเซลล์
+     *  เดียวกันจึงเห็นทั้งข้อความและเส้น แต่ terminal แสดงได้อย่างเดียว
+     *  ถ้าเซลล์มีตัวอักษรจริง (ไม่ใช่ช่องว่าง) ให้ข้อความชนะ — ไม่งั้น
+     *  ชื่อเมนูบาร์/รายการเมนูแถวแรกที่ต้นฉบับขีดเส้นทับจะหายทั้งแถบ
+     *  เซลล์ว่างยังให้เส้นชนะ กรอบกล่องจึงยังต่อเนื่องเป็นเส้นเดียว     */
+    if ((cell->dot[0] | cell->dot[1] | cell->dot[2]) &&
+        !((cell->base && cell->base != ' ') ||
+          cell->top || cell->upper || cell->below)) {
         /*  graphics dot cell (plot): dot[0..2] คือ 20 แถวพิกเซลของเซลล์
          *  DOS แบ่งเป็น 3 กลุ่ม (0-6 / 7-13 / 14-19) — บน terminal ทั้ง 3
          *  กลุ่มอยู่ใน "แถวเดียวกัน" (เดิม py = y*2+row ทำให้กรอบเลื่อน
@@ -1046,6 +1056,35 @@ void awrchardot(unsigned int x, unsigned int y) { backend_wrchardot(x, y); }
 /* setgraph - port of CWGRPHC.C setgraph: allocate the screen buffer,  */
 /* select the backend (always ncurses) and bind the dispatch table.    */
 /* ------------------------------------------------------------------ */
+/*  ---- terminal restore ------------------------------------------------
+ *  ปิดโปรแกรมแล้วต้องคืน terminal ให้ shell ใช้ต่อได้:
+ *    - endwin() ออกจาก ncurses (โชว์ cursor, ปิด keypad/alternate screen)
+ *    - คืน termios ดิบที่เก็บไว้ *ก่อน* initscr() — ไม่ใช่ค่าที่ ncurses
+ *      ตั้งไว้ (cbreak/noecho) เพราะ shim บันทึก termios หลัง ncurses
+ *      ทำงานแล้ว ทำให้ atexit ของ shim คืนค่า noecho กลับมาที่ shell
+ *      (อาการ: alt+x ออกแล้วพิมพ์อะไรก็ไม่ขึ้น ใช้ terminal ต่อไม่ได้)
+ *  เรียกทั้งตอน exit ปกติและเมื่อโดนสัญญาณ                        */
+static struct termios port_orig_tio;
+static int            port_orig_tio_saved;
+
+static void port_cleanup_term(void)
+{
+    if (port_active) {
+        endwin();
+        port_active = 0;
+    }
+    if (port_orig_tio_saved) {
+        tcsetattr(STDIN_FILENO, TCSANOW, &port_orig_tio);
+        port_orig_tio_saved = 0;
+    }
+}
+
+static void port_signal_exit(int sig)
+{
+    port_cleanup_term();
+    _exit(128 + sig);
+}
+
 void setgraph(void)
 {
     static int first = 1;
@@ -1089,6 +1128,17 @@ void setgraph(void)
      *  แล้ว mvaddstr() จะทิ้งไบต์ >= 0x80 ทั้งหมด -> ตัวอักษรไทยหายเงียบ ๆ
      *  (ASCII ยังขึ้นปกติ จึงดูเหมือนจอวาดได้แต่ไทยว่าง)                     */
     setlocale(LC_ALL, "");
+
+    /*  เก็บ termios ก่อน ncurses แตะ แล้วคืนตอนออกจากโปรแกรม          */
+    if (isatty(STDIN_FILENO) &&
+        tcgetattr(STDIN_FILENO, &port_orig_tio) == 0) {
+        port_orig_tio_saved = 1;
+    }
+    atexit(port_cleanup_term);
+    signal(SIGTERM, port_signal_exit);
+    signal(SIGHUP,  port_signal_exit);
+    signal(SIGQUIT, port_signal_exit);
+
     initscr();
     cbreak();
     noecho();

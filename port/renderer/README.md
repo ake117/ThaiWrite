@@ -60,6 +60,35 @@ DOS byte-buffer sizes (20 bytes per scanline record).
   ENLARGEATTR glyph for the same reason. `prakeaw()` is a no-op.
 - super/subscript and enlarge are recorded per cell but rendered as
   normal glyphs (terminals cannot shift a single cell).
+- **Text beats dots inside one cell.** A DOS cell is 8x20 px, so a glyph
+  and a 1-px rule/box edge land in *different* pixel rows and the
+  original shows both; a terminal cell shows one thing only. `plot()`
+  writes `port_cell.dot[]`, `prchar()` writes the glyph, and
+  `render_cell()` prefers the glyph whenever the cell holds a real
+  character (base non-space or a vowel/tone overlay). Without this the
+  menu bar vanished: `headmenu()` (MENU.C) writes the menu titles on the
+  top row in reverse video and then `_line()` strokes a rule across the
+  same row, so the dots used to win and erase every title. Blank cells
+  (base `' '`) still let the dots win, which keeps box edges continuous.
+- `port_cli.c` answers `cw --version` / `--help` from a *constructor*
+  (runs before CW.C's `main()`, which parses argv the DOS way). It has no
+  referenced symbols, so `port/Makefile` must link `renderer/port_cli.o`
+  directly — a static archive drops members nobody references and the
+  constructor would never run.
+- `setgraph()` snapshots termios *before* `initscr()` and registers
+  `atexit(port_cleanup_term)` + TERM/HUP/QUIT handlers that run
+  `endwin()` and restore it. `shim_raw_mode()` (shim_bios.c) saves the
+  termios *after* ncurses applied cbreak/noecho and registers its own
+  `atexit`; that handler therefore runs after `endwin()` and would put
+  noecho back on the shell. Registering earlier makes the renderer's
+  handler run last, so the real pre-ncurses state is what survives.
+- The splash box is centred inside the *free area* — horizontally via
+  `splash_base()`, vertically via `splash_dy()`, which skips the top UI
+  (rows 0-3) and leaves one row above the bottom frame, recalculated
+  from `port_visible_cols()/rows()` on every draw.
+- `render_cell()` draws dot cells as thin box-drawing glyphs guessed from
+  the bit profile; an unrecognised profile falls back to `▒` (the port's
+  rendering of the DOS dialog shadow).
 
 ## Debugging
 

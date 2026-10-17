@@ -54,14 +54,42 @@ int thaistrlen(char *thaist)
 #define SPLASH_BOTTOM   13                 /* แถวขอบล่างกล่อง           */
 
 /*  ขอบซ้ายของกล่อง ให้อยู่กลางพื้นที่ที่วาดได้จริง                      */
+/*  UI ของ CW (กรอบ/ไทเทิลบาร์) กว้าง 80 คอลัมน์ตายตัว — จอ terminal ที่
+ *  กว้างกว่านั้นเหลือที่ว่างด้านขวา ถ้าจัดกลางด้วยความกว้าง terminal
+ *  กล่องจะเยื้องไปทางขวาของกรอบ จึง clamp ที่ 80                      */
+#define SPLASH_FRAME_COLS 80
+
 static unsigned int splash_base(void)
 {
     int vis  = port_visible_cols();
-    int base = (vis - SPLASH_W) / 2;
+    int base;
+
+    if (vis > SPLASH_FRAME_COLS)
+        vis = SPLASH_FRAME_COLS;
+    base = (vis - SPLASH_W) / 2;
 
     if (base < 1)
         base = 1;
     return (unsigned int)base;
+}
+
+/*  กล่องต้องอยู่กลาง "ที่ว่าง" ไม่ใช่กลางจอทั้งใบ: ด้านบนมี UI ของ
+ *  โปรแกรม (ไทเทิล bar, บรรทัดสถานะ, ruler) อยู่แถว 0-3 จึงจัดกลาง
+ *  ในช่วงแถว SPLASH_AREA_TOP ถึงเหนือกรอบล่าง                       */
+#define SPLASH_H         (SPLASH_BOTTOM - SPLASH_TOP + 1)
+#define SPLASH_AREA_TOP   4
+
+static unsigned int splash_dy(void)
+{
+    int vis    = port_visible_rows();
+    int bottom = vis - 2;                   /* เหนือกรอบล่าง 1 แถว   */
+    int area_h = bottom - SPLASH_AREA_TOP + 1;
+    int top    = SPLASH_AREA_TOP + (area_h - SPLASH_H) / 2;
+    int dy     = top - SPLASH_TOP;
+
+    if (dy < 0)
+        dy = 0;
+    return (unsigned int)dy;
 }
 
 /*  เติม blank + attr ครบช่วงคอลัมน์ [x0..x1] ของแถว y                   */
@@ -105,6 +133,9 @@ void dispstrhgc(char *st, unsigned int x, unsigned int y, font_attr attr)
     {
         unsigned int base = splash_base();
         unsigned int off  = base - 1;   /* ระยะที่เลื่อนจากตำแหน่งเดิม */
+        unsigned int dy   = splash_dy(); /* เลื่อนลงให้อยู่กลางที่ว่าง   */
+
+        y += dy;                        /* แถวของกล่องหลังจัดกลาง       */
 
         if (((unsigned char)st[0] == ' ') && ((unsigned char)st[1] == 0x98))
         {
@@ -119,12 +150,18 @@ void dispstrhgc(char *st, unsigned int x, unsigned int y, font_attr attr)
 
             /*  แถบพระเกี้ยวด้านซ้าย: เติมพื้นขาวให้ครบทุกแถวของแถบ
              *  ก่อน แล้วค่อยวาดพระเกี้ยวทับแถวกลาง ๆ                     */
-            for (fy = SPLASH_TOP + 1; fy <= SPLASH_BOTTOM - 1; fy++)
+            for (fy = SPLASH_TOP + 1 + dy; fy <= SPLASH_BOTTOM - 1 + dy;
+                 fy++)
             {
                 splash_fill(fy, base + 1, base + SPLASH_LOGO_W, attr);
+
+                /*  ช่องว่างท้ายสตริงของแต่ละแถวถูกวาดด้วย attr ของกล่อง
+                 *  ทำให้ขอบขวายื่นออกมาอีก 1 คอลัมน์ — ล้างให้เสมอขอบ   */
+                prchar(' ', NORMALATTR, base + SPLASH_W, fy);
             }
 
-            port_draw_crest(base + 1, SPLASH_TOP + 2, SPLASH_LOGO_W, 5, attr);
+            port_draw_crest(base + 1, SPLASH_TOP + 2 + dy,
+                            SPLASH_LOGO_W, 5, attr);
             return;
         }
         if (((unsigned char)st[0] == ' ') && ((unsigned char)st[1] == 0x96))
