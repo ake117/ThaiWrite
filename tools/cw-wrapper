@@ -1,0 +1,37 @@
+#!/bin/sh
+# ---------------------------------------------------------------------
+# cw — CU Writer 1.41 (CLI port) ตัวช่วยเรียกใช้งาน
+#
+# ทำไมต้องมี wrapper:
+#   ตัวโปรแกรมต้นฉบับเป็น DOS — ถือว่า argument ที่ขึ้นต้นด้วย '/' คือ option
+#   (เช่น /H = Hercules, /S = ปิดเพลง) บน Linux absolute path ก็เริ่มด้วย '/'
+#   จึงถูกอ่านเป็น option แล้ว strcat ลง cup_option[16] → buffer overflow
+#   (เจอจริง: "*** buffer overflow detected ***" แล้ว core dump)
+#
+#   ตัว wrapper นี้จึง cd ไปโฟลเดอร์ของไฟล์ แล้วส่งชื่อไฟล์แบบ relative
+#   ให้ตรงกับวิธีที่ CU Writer ต้นฉบับคาดหวัง (DOS ไม่มี absolute path)
+# ---------------------------------------------------------------------
+CW=/home/ake/cuwrite-linux-cli/port/cw
+
+if [ ! -x "$CW" ]; then
+    echo "cw: ไม่พบไบนารีที่ $CW — ต้อง build ก่อน (make -C /home/ake/cuwrite-linux-cli/port)" >&2
+    exit 1
+fi
+
+# ไม่ระบุไฟล์ → เปิดเอกสารเปล่า "NONAME1.CM" เหมือน CU Writer 1.52
+#   ต้นฉบับ 1.41 เริ่มด้วย filename ว่าง ทำให้ main loop ไม่เข้าโหมดแก้ไข
+#   (กด ESC ในเมนูแล้วเมนูเปิดค้าง เพราะลูปเรียกเมนูใหม่ทันที) — 1.52 แก้ด้วย
+#   การเปิดเอกสารเปล่าชื่อ NONAME1.CM ตั้งแต่เริ่ม
+if [ $# -eq 0 ]; then
+    set -- NONAME1.CM
+fi
+
+# อาร์กิวเมนต์แรกเป็นไฟล์ที่มีจริง → เข้าไปทำงานในโฟลเดอร์นั้น
+if [ -n "$1" ] && [ -f "$1" ]; then
+    _dir=$(dirname -- "$1") || exit 1
+    _base=$(basename -- "$1") || exit 1
+    cd "$_dir" || exit 1
+    exec "$CW" "$_base"
+fi
+
+exec "$CW" "$@"
