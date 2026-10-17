@@ -59,6 +59,16 @@ cw: $(OBJS) shim/libtwshim.a renderer/libtwrenderer.a renderer/port_cli.o
 renderer/port_cli.o: renderer/port_cli.c
 	$(MAKE) -C renderer port_cli.o
 
+# libtwrenderer.a ไม่มี rule ของตัวเอง => make เคยข้ามการ rebuild เมื่อแก้
+# cwgrphc.c/cscrn.c (เห็นเป็นไฟล์ที่มีอยู่แล้ว) ต้องบังคับ sub-make ทุกครั้ง
+# ไม่งั้นเทสต์/ไบนารีค้างเป็นโค้ดเก่าเงียบ ๆ
+.PHONY: renderer-lib
+renderer-lib:
+	$(MAKE) -C renderer
+
+renderer/libtwrenderer.a: renderer-lib
+	@:
+
 $(BUILD):
 	mkdir -p $(BUILD)
 

@@ -320,9 +320,23 @@ static const unsigned char braille_bit[2][4] = {
     { 0x08, 0x10, 0x20, 0x80 }      /* คอลัมน์ขวา  แถว 0..3 */
 };
 
+/*  แถบ UI ด้านบน (ชื่อมหาลัย/ไดรฟ์/เมนูบาร์/แถบสถานะ) — ต้นฉบับ DOS วาด
+ *  เส้นคั่นไว้ที่ *พิกเซลบนสุด* ของเซลล์ แล้วตัวอักษรอยู่ใต้เส้นในเซลล์
+ *  เดียวกัน (เซลล์สูง 20 px) terminal แสดงได้เซลล์ละตัวอักษรเดียว จึง
+ *  เห็นข้อความ *ทับ* เส้นกรอบ
+ *  แก้: ย้ายเส้นคั่นมาเป็นขีดเส้นใต้ของแถวข้อความ (ตำแหน่งเดียวกับที่ DOS
+ *  วางเส้น คือใต้ตัวอักษร) แล้วระงับเส้นนอนของ dot layer ในแถบนี้        */
+#define PORT_UI_BAND_ROWS 3
+
+static int ui_band_row(unsigned int y)
+{
+    return y < PORT_UI_BAND_ROWS;
+}
+
 static void render_cell(unsigned int x, unsigned int y)
 {
     port_cell *cell = &screen[y * PORT_SCREEN_COLS + x];
+    int band = ui_band_row(y);
     char buf[24];
     int n = 0;
     chtype attrs;
@@ -395,6 +409,14 @@ static void render_cell(unsigned int x, unsigned int y)
             dot_vstroke_any(&screen[(y + 1) * PORT_SCREEN_COLS + x]))
             down = 1;
 
+        /*  แถวบนสุดของแถบ UI: เส้นนอนย้ายไปเป็นขีดเส้นใต้แล้ว มุม ┌ ┐
+         *  จึงเหลือแต่เส้นตั้ง — วาดเป็น │ ไม่งั้นจะเห็นมุมลอยไม่มีเส้น    */
+        if (band && y == 0 && vbit && !up) {
+            if ((int)y < getmaxy(stdscr))
+                mvaddstr((int)y, (int)x, "\xe2\x94\x82");
+            return;
+        }
+
         if (up && down && lft && rgt)
             glyph = "\xe2\x94\xbc";              /* ┼  cross            */
         else if (down && lft && rgt)
@@ -424,6 +446,17 @@ static void render_cell(unsigned int x, unsigned int y)
         else
             glyph = "\xe2\x96\x92";              /* ▒  unknown          */
 
+        /*  แถบ UI: เส้นนอนล้วน ๆ ถูกแทนด้วยขีดเส้นใต้ของแถวข้อความแล้ว
+         *  (ดู ui_band_row) — ไม่วาดซ้ำ ไม่งั้นจะเห็นเส้นคู่            */
+        if (band && !vbit && has_h && !up && !down) {
+            if ((int)y < getmaxy(stdscr)) {
+                attrset(A_UNDERLINE);
+                mvaddch((int)y, (int)x, ' ');
+                attrset(A_NORMAL);
+            }
+            return;
+        }
+
         if ((int)y < getmaxy(stdscr))
             mvaddstr((int)y, (int)x, glyph);
         return;
@@ -435,6 +468,8 @@ static void render_cell(unsigned int x, unsigned int y)
          *  เซลล์ที่ไม่มีหมึกของ bitmap blit) ต้องวาดด้วย attr เดิม ไม่งั้น
          *  จะกลายเป็นช่องดำคั่นกลางแถบขาว                            */
         attrs = cell_attr(cell) & A_ATTRIBUTES;
+        if (band)
+            attrs |= A_UNDERLINE;
         attrset(attrs);
         mvaddch((int)y, (int)x, ' ');
         attrset(A_NORMAL);
@@ -456,6 +491,8 @@ static void render_cell(unsigned int x, unsigned int y)
     buf[n] = '\0';
 
     attrs = cell_attr(cell) & A_ATTRIBUTES;
+    if (band)
+        attrs |= A_UNDERLINE;
     attrset(attrs);
     mvaddstr((int)y, (int)x, buf);
     attrset(A_NORMAL);
